@@ -45,7 +45,21 @@ export function Onboarding() {
           <p className="text-[13px] font-bold text-cream/60 mt-2 leading-relaxed">
             Где-то между сном и рассветом вас ждёт маленькое существо. Оно будет расти, мечтать, скучать — и помнить вас. Даже когда вы не рядом.
           </p>
-          <div className="mt-5 text-left">
+          <div className="mt-4 text-left card-soft p-3.5 space-y-1.5">
+            <p className="text-[10.5px] font-black text-cream/45 uppercase tracking-wider mb-1">Как играть</p>
+            {([
+              ['heart', 'Гладьте питомца прямо в комнате — это сердечки, настроение и доверие.'],
+              ['spark', 'Кнопки под сценой: кухня, уборка, сон, учёба и прогулка.'],
+              ['moon', 'Закройте игру — питомец продолжит жить: поспит, увидит сон, соскучится.'],
+              ['diary', 'Вкладки: забота и лавка, мини-игры, болталка с памятью, дневник и сны.'],
+            ] as [string, string][]).map(([ic, txt]) => (
+              <div key={ic} className="flex items-start gap-2">
+                <Icon name={ic} className="w-4 h-4 text-butter shrink-0 mt-0.5" />
+                <p className="text-[12px] font-bold text-cream/70 leading-snug">{txt}</p>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 text-left">
             <label className="text-[11px] font-black text-cream/50 uppercase tracking-wider">Как вас зовут? <span className="normal-case font-bold text-cream/30">(необязательно — питомец спросит сам)</span></label>
             <input className="input-soft mt-1.5" placeholder="Ваше имя" value={ownerName} onChange={e => setOwnerName(e.target.value)} onKeyDown={e => e.key === 'Enter' && startEgg()} />
           </div>

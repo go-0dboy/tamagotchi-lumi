@@ -43,6 +43,7 @@ export function freshState(): GameState {
     bubble: null,
     dayKey: dayKeyOf(Date.now()),
     settings: { sound: true, reminders: true },
+    freshHatch: false,
   };
 }
 
@@ -149,6 +150,7 @@ export class GameEngine {
       pet.trust += 5;
     }
     this.state.pet = pet;
+    this.state.freshHatch = true;
     this.recalcTraits();
     this.addMemory('момент', `${pet.name} появился на свет! Редкость: ${dna.rarity}.`);
     this.pushDiary(`${pet.name} вылупился и первым делом посмотрел на меня. Кажется, это начало большой дружбы.`, 'волшебный');
@@ -158,6 +160,22 @@ export class GameEngine {
   }
   renamePet(name: string) {
     if (this.state.pet && name.trim()) { this.state.pet.name = name.trim().slice(0, 16); this.commit(); }
+  }
+  /* игрок подтвердил имя на экране знакомства */
+  completeReveal() {
+    const p = this.state.pet;
+    this.state.freshHatch = false;
+    if (p) {
+      const greet: Record<string, string> = {
+        'робкий': 'П-привет… можно я буду сидеть поближе? Так смелее.',
+        'озорной': 'Ну всё, теперь тут будет весело! Я уже придумал три шалости.',
+        'мечтательный': 'Привет! Мне снилось, что мы встретимся. Сон не соврал.',
+        'смелый': 'Привет! Пошли исследовать? Хоть прямо сейчас. Ну… после перекуса.',
+        'нежный': 'Привет… у тебя тёплые руки. Я это сразу почувствовал.',
+      };
+      this.setBubble(greet[p.personality.temperament] ?? 'Привет! Я так ждал, что ты придёшь. Расскажешь мне о себе?');
+    }
+    this.commit();
   }
 
   /* ============================================================

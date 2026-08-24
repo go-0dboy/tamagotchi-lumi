@@ -147,6 +147,7 @@ export interface GameState {
   bubble: { text: string; at: number } | null;
   dayKey: string;
   settings: { sound: boolean; reminders: boolean };
+  freshHatch: boolean; // яйцо только что вылупилось — показать экран знакомства
 }
 
 export type EngineEvent = 'state';

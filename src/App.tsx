@@ -4,7 +4,6 @@
  * ============================================================ */
 import { useEffect, useState } from 'react';
 import { engine, timePhase, getWeather } from './game/engine';
-import type { Pet } from './game/types';
 import PetSprite from './components/PetSprite';
 import RoomScene from './components/Room';
 import HUD from './components/HUD';
@@ -31,7 +30,6 @@ export default function App() {
   const [, setTick] = useState(0);
   const [tab, setTab] = useState('care');
   const [showSettings, setShowSettings] = useState(false);
-  const [revealPet, setRevealPet] = useState<Pet | null>(null);
 
   useEffect(() => {
     const unsub = engine.subscribe(() => setTick(t => t + 1));
@@ -58,21 +56,20 @@ export default function App() {
   const weather = getWeather();
   const ageDays = Math.max(0, Math.floor((Date.now() - pet.growth.bornAt) / 86400000));
 
-  const newGeneration = () => {
-    const p = engine.startNewGeneration();
-    if (p) setRevealPet(p);
-  };
+  const newGeneration = () => engine.startNewGeneration();
 
   return (
     <div className="min-h-dvh lg:h-dvh lg:overflow-hidden" style={{ background: 'radial-gradient(ellipse at 20% 0%, #1c2a52 0%, #10172b 55%)' }}>
       {/* ------- оверлеи ------- */}
-      {s.pendingWelcome && !pet.transcended && (
+      {s.freshHatch && pet && (
+        <RevealSheet pet={pet} onDone={() => engine.completeReveal()} />
+      )}
+      {s.pendingWelcome && !pet.transcended && !s.freshHatch && (
         <WelcomeBack awayMs={s.pendingWelcome.awayMs} events={s.pendingWelcome.events} line={s.pendingWelcome.line} petName={pet.name} />
       )}
       {s.pendingFarewell && (
         <Farewell entry={s.pendingFarewell} onNewGen={newGeneration} onKeep={() => engine.dismissFarewell()} />
       )}
-      {revealPet && <RevealSheet pet={revealPet} onDone={() => setRevealPet(null)} />}
       {showSettings && <SettingsModal state={s} onClose={() => setShowSettings(false)} />}
 
       <div className="max-w-6xl mx-auto lg:h-full lg:grid lg:grid-cols-[1fr_430px] lg:gap-5 lg:p-5">
@@ -114,12 +111,13 @@ export default function App() {
 
             {/* быстрые действия */}
             {!pet.transcended && (
-              <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center gap-2 px-3">
+              <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center gap-1.5 sm:gap-2 px-2 sm:px-3">
                 <QuickBtn icon="berry" label="Кухня" onClick={() => setTab('care')} />
-                <QuickBtn icon="heart" label="Гладить" onClick={() => { engine.petStroke(); sfx.purr(); }} />
+                <QuickBtn icon="heart" label="Гладить" onClick={() => engine.petStroke()} />
                 <QuickBtn icon="broom" label="Уборка" onClick={() => engine.cleanRoom()} />
                 <QuickBtn icon="sleep" label={pet.sleeping ? 'Будить' : 'Спать'} onClick={() => engine.toggleSleep()} />
-                <QuickBtn icon="walk" label="Гулять" onClick={() => engine.explore()} />
+                <QuickBtn icon="book" label="Учиться" onClick={() => { const r = engine.studyTogether(); if (!r.ok) sfx.sad(); }} />
+                <QuickBtn icon="walk" label="Гулять" onClick={() => { const r = engine.explore(); if (!r.ok) sfx.sad(); }} />
               </div>
             )}
           </RoomScene>

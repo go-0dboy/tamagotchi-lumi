@@ -47,6 +47,7 @@ const ICONS: Record<string, React.ReactNode> = {
   shell: <><path d="M12 20L4 9a9 9 0 0 1 16 0z" /><path d="M12 20L8 8M12 20l4-12M12 20V5" /></>,
   stone: <path d="M7 18c-3-1-4-5-2-8s6-5 9-3 5 5 3 8-6 5-10 3z" />,
   hat: <><path d="M7 15L12 4l5 11z" /><path d="M4 15h16v3H4z" /><circle cx="12" cy="4" r="1.4" fill="currentColor" stroke="none" /></>,
+  leafhat: <><path d="M5 16q0-9 7-11 7 2 7 11z" /><path d="M3 16h18v2.5H3z" /><path d="M12 5q3.5-2.5 6-.5" /></>,
   scarf: <><path d="M4 8c4-3 12-3 16 0v3c-4-2.5-12-2.5-16 0z" /><path d="M15 11v7M18 10.5V19" /></>,
   glasses: <><circle cx="7.5" cy="13" r="4" /><circle cx="16.5" cy="13" r="4" /><path d="M11.5 13h1M3.5 12L2 10M20.5 12L22 10" /></>,
   wings: <><path d="M12 12C10 6 5 4 2 5c0 5 4 9 10 7z" /><path d="M12 12c2-6 7-8 10-7 0 5-4 9-10 7z" /></>,
