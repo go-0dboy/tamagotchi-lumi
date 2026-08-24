@@ -1,0 +1,2 @@
+# tamagotchi-lumi
+Пробный тамагочи
