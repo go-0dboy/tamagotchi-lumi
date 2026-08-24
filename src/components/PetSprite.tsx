@@ -19,7 +19,7 @@ interface Heart { id: number; x: number; y: number; dx: number; }
 
 interface Props {
   pet: Pet;
-  size?: number;
+  size?: number | string;
   interactive?: boolean;
   onStroke?: () => void;
 }
