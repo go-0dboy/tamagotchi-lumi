@@ -22,11 +22,12 @@ export default function Journal({ state }: { state: GameState }) {
 
   return (
     <div className="card p-4 anim-fade-up">
-      <div className="flex gap-1 mb-3 bg-night-900/50 rounded-2xl p-1.5">
+      <div className="flex gap-1 mb-3 bg-night-900/50 rounded-2xl p-1 sm:p-1.5">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={`flex-1 flex flex-col items-center gap-1 py-2 rounded-xl text-[10.5px] font-extrabold transition-all ${tab === t.id ? 'bg-night-700 text-butter shadow-lg' : 'text-cream/50 hover:text-cream'}`}>
-            <Icon name={t.icon} className="w-4.5 h-4.5" />{t.label}
+            className={`flex-1 min-w-0 flex flex-col items-center gap-0.5 sm:gap-1 py-1.5 sm:py-2 rounded-xl text-[9.5px] sm:text-[10.5px] font-extrabold leading-none transition-all ${tab === t.id ? 'bg-night-700 text-butter shadow-lg' : 'text-cream/50 hover:text-cream'}`}>
+            <Icon name={t.icon} className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+            <span className="whitespace-nowrap">{t.label}</span>
           </button>
         ))}
       </div>

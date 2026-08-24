@@ -74,7 +74,7 @@ export default function App() {
 
       <div className="max-w-6xl mx-auto lg:h-full lg:grid lg:grid-cols-[1fr_430px] lg:gap-5 lg:p-5">
         {/* ================= СЦЕНА ================= */}
-        <div className="relative h-[50vh] min-h-[400px] lg:h-auto lg:min-h-0 overflow-hidden border-b lg:border border-sky/10 lg:rounded-[28px]">
+        <div className="relative h-[46dvh] min-h-[330px] sm:h-[50dvh] sm:min-h-[380px] lg:h-auto lg:min-h-0 overflow-hidden border-b lg:border border-sky/10 lg:rounded-[28px]">
           <RoomScene themeId={s.roomTheme} furniture={s.furniture} phase={phase} weather={weather}>
             {/* инфо-чипы сцены */}
             <div className="absolute top-3 left-3 flex gap-2 z-20">
@@ -95,23 +95,23 @@ export default function App() {
                 <button className="btn btn-primary" onClick={newGeneration}><Icon name="spark" className="w-5 h-5" />Новое яйцо</button>
               </div>
             ) : (
-              <div className="absolute inset-x-0 bottom-[96px] flex justify-center z-10">
+              <div className="absolute inset-x-0 bottom-[84px] sm:bottom-[92px] flex justify-center z-10">
                 <div className="relative">
                   {s.bubble && (
-                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 -translate-y-full w-max max-w-[240px] z-20 anim-bubble">
-                      <div className="bg-cream text-night-900 px-3.5 py-2.5 rounded-2xl rounded-bl-md text-[12.5px] font-extrabold leading-snug shadow-2xl">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 -translate-y-full w-max max-w-[min(240px,76vw)] z-20 anim-bubble">
+                      <div className="bg-cream text-night-900 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-2xl rounded-bl-md text-[11.5px] sm:text-[12.5px] font-extrabold leading-snug shadow-2xl">
                         {s.bubble.text}
                       </div>
                     </div>
                   )}
-                  <PetSprite pet={pet} size="min(52vw, 226px)" onStroke={() => engine.petStroke()} />
+                  <PetSprite pet={pet} size="min(50vw, 240px)" onStroke={() => engine.petStroke()} />
                 </div>
               </div>
             )}
 
-            {/* быстрые действия */}
+            {/* быстрые действия: 6 компактных кнопок влезают от 320px */}
             {!pet.transcended && (
-              <div className="absolute inset-x-0 bottom-3 z-20 flex justify-center gap-1.5 sm:gap-2 px-2 sm:px-3">
+              <div className="absolute inset-x-0 bottom-2.5 sm:bottom-3 z-20 flex justify-center gap-1 sm:gap-1.5 px-1">
                 <QuickBtn icon="berry" label="Кухня" onClick={() => setTab('care')} />
                 <QuickBtn icon="heart" label="Гладить" onClick={() => engine.petStroke()} />
                 <QuickBtn icon="broom" label="Уборка" onClick={() => engine.cleanRoom()} />
@@ -178,11 +178,11 @@ export default function App() {
 
 function QuickBtn({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="flex flex-col items-center gap-1 group">
-      <span className="w-12 h-12 rounded-2xl flex items-center justify-center border border-sky/20 text-cream bg-night-900/70 backdrop-blur-sm shadow-lg transition-all group-hover:-translate-y-1 group-hover:border-butter/60 group-hover:text-butter group-active:scale-90">
-        <Icon name={icon} className="w-5.5 h-5.5" />
+    <button onClick={onClick} className="flex flex-col items-center gap-0.5 sm:gap-1 group min-w-0">
+      <span className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border border-sky/20 text-cream bg-night-900/70 backdrop-blur-sm shadow-lg transition-all group-hover:-translate-y-1 group-hover:border-butter/60 group-hover:text-butter group-active:scale-90">
+        <Icon name={icon} className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
       </span>
-      <span className="text-[9.5px] font-black text-cream/80 drop-shadow">{label}</span>
+      <span className="text-[8.5px] sm:text-[9.5px] font-black text-cream/80 drop-shadow leading-none whitespace-nowrap">{label}</span>
     </button>
   );
 }
