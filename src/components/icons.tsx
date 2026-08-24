@@ -1,0 +1,73 @@
+/* Единый набор inline-SVG иконок игры (без эмодзи в интерфейсе) */
+export default function Icon({ name, className = 'w-5 h-5' }: { name: string; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {ICONS[name] ?? <circle cx="12" cy="12" r="8" />}
+    </svg>
+  );
+}
+
+const F = { fill: 'currentColor', stroke: 'none' } as const;
+
+const ICONS: Record<string, React.ReactNode> = {
+  spark: <path {...F} d="M12 1.5l2.4 7.4 7.6 2.1-7.6 2.1L12 20.5l-2.4-7.4L2 11l7.6-2.1z" />,
+  star: <path {...F} d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.2l-6.1 3.4 1.4-6.8-5.1-4.7 6.9-.8z" />,
+  heart: <path {...F} d="M12 21C5.5 15.5 2 12 2 8.5 2 5.7 4.2 3.5 7 3.5c1.9 0 3.7 1 5 2.7 1.3-1.7 3.1-2.7 5-2.7 2.8 0 5 2.2 5 5 0 3.5-3.5 7-10 12.5z" />,
+  berry: <><circle cx="9" cy="14" r="5" /><circle cx="15.5" cy="14.5" r="4.5" /><path d="M12 9c0-3 2-4.5 4-5M12 9c0-2.5-1.5-4-3.5-4.5" /><circle cx="9" cy="14" r="1.4" fill="currentColor" stroke="none" /></>,
+  honey: <><rect x="6" y="8" width="12" height="12" rx="3" /><path d="M5 8h14M9 4h6v4H9zM10 13c0 1.5 1 2 1 3.5" /></>,
+  soup: <><path d="M4 12h16a8 8 0 0 1-16 0z" /><path d="M9 8c0-1.5 1-2 1-3M14 8c0-1.5 1-2 1-3M2 12h20" /></>,
+  cookie: <><circle cx="12" cy="12" r="9" /><circle cx="9" cy="10" r="1.2" fill="currentColor" stroke="none" /><circle cx="14.5" cy="13.5" r="1.2" fill="currentColor" stroke="none" /><circle cx="12" cy="16.5" r="1" fill="currentColor" stroke="none" /><circle cx="15" cy="8.5" r="1" fill="currentColor" stroke="none" /></>,
+  tea: <><path d="M4 9h12v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z" /><path d="M16 10h2a3 3 0 0 1 0 6h-2M7 5c0-1 .8-1.5.8-2.5M11 5c0-1 .8-1.5.8-2.5" /></>,
+  cake: <><path d="M4 20v-7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7M4 20h16M12 11V8" /><circle cx="12" cy="6.5" r="1.5" fill="currentColor" stroke="none" /><path d="M4 16c2-1.5 4 1.5 6 0s4 1.5 6 0 3 1 4 .5" /></>,
+  broom: <><path d="M19 4l-7.5 7.5" /><path d="M11.5 11.5L5 21l9.5-4.5a4.5 4.5 0 0 0-3-5z" /></>,
+  book: <><path d="M12 6c-2-2-5-2.5-8-2v14c3-.5 6 0 8 2 2-2 5-2.5 8-2V4c-3-.5-6 0-8 2z" /><path d="M12 6v14" /></>,
+  bolt: <path {...F} d="M13 2L4 14h6l-1 8 9-12h-6z" />,
+  brush: <><path d="M20 4c-4 1-9 5-11 9" /><path d="M9 13c-2 0-4 1.5-4 5 0 1 .5 2 1.5 2 3.5 0 6-2 6.5-5z" /></>,
+  compass: <><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></>,
+  moon: <path {...F} d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" />,
+  sun: <><circle cx="12" cy="12" r="4.5" /><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.5 4.5l1.8 1.8M17.7 17.7l1.8 1.8M4.5 19.5l1.8-1.8M17.7 6.3l1.8-1.8" /></>,
+  cloud: <path d="M7 18a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5-1A4.5 4.5 0 0 1 17 18z" />,
+  rain: <><path d="M7 14a4 4 0 0 1 0-8 5.5 5.5 0 0 1 10.5-1A4.5 4.5 0 0 1 17 14z" /><path d="M8 17l-1 3M12.5 17l-1 3M17 17l-1 3" /></>,
+  snowflake: <><path d="M12 3v18M5 6.5l14 11M19 6.5l-14 11" /><path d="M12 3l-2 2M12 3l2 2M12 21l-2-2M12 21l2-2" /></>,
+  wind: <path d="M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h8" />,
+  gift: <><rect x="4" y="9" width="16" height="11" rx="2" /><path d="M4 13h16M12 9v11M12 9c-4 0-5.5-5-2.5-5S12 9 12 9zm0 0c4 0 5.5-5 2.5-5S12 9 12 9z" /></>,
+  art: <><path d="M12 3a9 9 0 1 0 0 18c1.5 0 2-.8 2-1.7 0-1.5-1.3-1.8-1.3-3 0-1 .8-1.8 2-1.8H17a4 4 0 0 0 4-4c0-4.5-4-7.5-9-7.5z" /><circle cx="7.5" cy="10.5" r="1.2" fill="currentColor" stroke="none" /><circle cx="11" cy="7" r="1.2" fill="currentColor" stroke="none" /><circle cx="15.5" cy="8" r="1.2" fill="currentColor" stroke="none" /></>,
+  plant: <><path d="M12 21v-8" /><path d="M12 13c0-4 3-7 8-7 0 5-3 8-8 7zM12 13c0-3-2.5-5-6-5 0 4 2.5 6 6 5z" /><path d="M8 21h8" /></>,
+  drop: <path {...F} d="M12 2.5s6.5 7 6.5 12a6.5 6.5 0 0 1-13 0c0-5 6.5-12 6.5-12z" />,
+  lamp: <><path d="M9 3h6l2 6H7z" /><path d="M12 9v10M8 21h8" /><circle cx="12" cy="6" r="1" fill="currentColor" stroke="none" /></>,
+  aquarium: <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M7 13q2-2 4 0t4 0" /><circle cx="15" cy="10" r="1.2" fill="currentColor" stroke="none" /></>,
+  bookshelf: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 12h18M7 7v5M11 7v5M15 7v5M8 15v5M13 15v5" /></>,
+  rug: <><ellipse cx="12" cy="14" rx="9" ry="5" /><ellipse cx="12" cy="14" rx="5" ry="2.6" /><path d="M5 6h14" /></>,
+  musicbox: <><rect x="4" y="9" width="16" height="11" rx="2" /><path d="M4 9l2-4h12l2 4M12 13a1.6 1.6 0 1 0 1.6 1.6V11l3-1" /></>,
+  ball: <><circle cx="12" cy="12" r="9" /><path d="M4 8c4 3 12 3 16 0M4 16c4-3 12-3 16 0" /></>,
+  kite: <><path d="M12 2l7 8-7 12L5 10z" /><path d="M12 2v20M5 10h14" /></>,
+  flower: <><circle cx="12" cy="10" r="2.5" /><path d="M12 7.5a3 3 0 1 0-3 3M12 7.5a3 3 0 1 1 3 3M9 10a3 3 0 1 0 3 3M15 10a3 3 0 1 1-3 3" /><path d="M12 13v8M12 18c2 0 3.5-1 4-3M12 16c-2 0-3.5-1-4-3" /></>,
+  drawing: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 16l5-5 4 4 3-3 6 6" /><circle cx="9" cy="9" r="1.5" /></>,
+  feather: <><path d="M20 4c-6 0-12 4-14 12l-2 4 4-2c8-2 12-8 12-14z" /><path d="M6 18L18 6" /></>,
+  shell: <><path d="M12 20L4 9a9 9 0 0 1 16 0z" /><path d="M12 20L8 8M12 20l4-12M12 20V5" /></>,
+  stone: <path d="M7 18c-3-1-4-5-2-8s6-5 9-3 5 5 3 8-6 5-10 3z" />,
+  hat: <><path d="M7 15L12 4l5 11z" /><path d="M4 15h16v3H4z" /><circle cx="12" cy="4" r="1.4" fill="currentColor" stroke="none" /></>,
+  scarf: <><path d="M4 8c4-3 12-3 16 0v3c-4-2.5-12-2.5-16 0z" /><path d="M15 11v7M18 10.5V19" /></>,
+  glasses: <><circle cx="7.5" cy="13" r="4" /><circle cx="16.5" cy="13" r="4" /><path d="M11.5 13h1M3.5 12L2 10M20.5 12L22 10" /></>,
+  wings: <><path d="M12 12C10 6 5 4 2 5c0 5 4 9 10 7z" /><path d="M12 12c2-6 7-8 10-7 0 5-4 9-10 7z" /></>,
+  gear: <><circle cx="12" cy="12" r="3.5" /><path d="M12 2.5V5M12 19v2.5M2.5 12H5M19 12h2.5M5 5l1.8 1.8M17.2 17.2L19 19M5 19l1.8-1.8M17.2 6.8L19 5" /></>,
+  soundOn: <><path d="M4 9v6h4l5 4V5L8 9z" /><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12" /></>,
+  soundOff: <><path d="M4 9v6h4l5 4V5L8 9z" /><path d="M17 9.5l5 5M22 9.5l-5 5" /></>,
+  close: <path d="M6 6l12 12M18 6L6 18" />,
+  diary: <><path d="M5 3h13a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" /><path d="M8 3v18M12 8h4M12 12h4" /></>,
+  chat: <path d="M21 12a8 8 0 0 1-11.6 7.2L4 21l1.8-5.4A8 8 0 1 1 21 12z" />,
+  game: <><path d="M6 9h12a4 4 0 0 1 4 4.5l-.8 4A2.5 2.5 0 0 1 17 19l-2-2H9l-2 2a2.5 2.5 0 0 1-4.2-1.5L2 13.5A4 4 0 0 1 6 9z" /><path d="M8 12.5v3M6.5 14h3" /><circle cx="16" cy="13" r="1" fill="currentColor" stroke="none" /><circle cx="18" cy="15" r="1" fill="currentColor" stroke="none" /></>,
+  home: <><path d="M4 11l8-7 8 7" /><path d="M6 10v10h12V10" /><path d="M10 20v-5h4v5" /></>,
+  care: <><path d="M12 21C5.5 15.5 2 12 2 8.5 2 5.7 4.2 3.5 7 3.5c1.9 0 3.7 1 5 2.7 1.3-1.7 3.1-2.7 5-2.7 2.8 0 5 2.2 5 5 0 3.5-3.5 7-10 12.5z" /><path d="M8 11l3 3 5-5" /></>,
+  timer: <><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2.5 2.5M9 2h6" /></>,
+  walk: <><circle cx="8" cy="5" r="2" /><circle cx="16" cy="5" r="2" /><circle cx="4.5" cy="10" r="2" /><circle cx="19.5" cy="10" r="2" /><path d="M12 11c-2.8 0-5 2.2-5 5 0 2 1.5 3.5 3.5 3.5.6 0 1-.3 1.5-.3s.9.3 1.5.3c2 0 3.5-1.5 3.5-3.5 0-2.8-2.2-5-5-5z" /></>,
+  sleep: <><path d="M17 13A7 7 0 0 1 8.5 5 7 7 0 1 0 17 13z" /><path d="M14 4h5l-5 5h5" /></>,
+  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><circle cx="12" cy="8" r="0.5" fill="currentColor" /></>,
+  bag: <><path d="M5 8h14l-1.2 12H6.2z" /><path d="M8.5 8V6.5a3.5 3.5 0 0 1 7 0V8" /></>,
+  tree: <><path d="M12 21v-6" /><path d="M12 15c-4 0-7-3-7-7 2.5 0 4 .8 5 2C10 6 11 3.5 12 2c1 1.5 2 4 2 8 1-1.2 2.5-2 5-2 0 4-3 7-7 7z" /></>,
+  export: <><path d="M12 3v12M7 8l5-5 5 5" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" /></>,
+  import: <><path d="M12 15V3M7 10l5 5 5-5" /><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" /></>,
+  check: <path d="M4 12.5l5.5 5.5L20 6.5" />,
+  brain: <><path d="M9 3a3.5 3.5 0 0 0-3.5 3.5c-2 .7-3 2.3-3 4 0 1.5.8 2.8 2 3.5A3.7 3.7 0 0 0 8 20c1.5 1 3.5.5 4-1V4.5A3.2 3.2 0 0 0 9 3z" /><path d="M15 3a3.5 3.5 0 0 1 3.5 3.5c2 .7 3 2.3 3 4 0 1.5-.8 2.8-2 3.5A3.7 3.7 0 0 1 16 20c-1.5 1-3.5.5-4-1V4.5A3.2 3.2 0 0 1 15 3z" /></>,
+  infinity: <path d="M8 12c-2 2.7-5.5 2.7-5.5 0S6 9.3 8 12s5.5 2.7 5.5 0-3.5-2.7-5.5 0zM16 12c2-2.7 5.5-2.7 5.5 0S18 14.7 16 12s-5.5-2.7-5.5 0 3.5 2.7 5.5 0z" />,
+};
