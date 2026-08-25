@@ -78,10 +78,10 @@ export default function ChatPanel({ state }: { state: GameState }) {
 
       {/* ввод */}
       <div className="flex gap-2">
-        <input className="input-soft !py-2.5" placeholder={`Написать ${state.pet!.name}…`} value={input}
+        <input className="input-soft !py-2.5 flex-1 min-w-0" placeholder={`Написать ${state.pet!.name}…`} value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && send()} />
-        <button className="btn btn-primary !px-4" onClick={() => send()} aria-label="Отправить">
+        <button className="btn btn-primary !px-4 shrink-0" onClick={() => send()} aria-label="Отправить">
           <Icon name="chat" className="w-5 h-5" />
         </button>
       </div>
@@ -118,13 +118,13 @@ export default function ChatPanel({ state }: { state: GameState }) {
 
       {/* дыхательный оверлей */}
       {breathing && (
-        <div className="fixed inset-0 z-50 bg-night-950/90 flex flex-col items-center justify-center anim-fade" onClick={() => setBreathing(false)}>
-          <p className="font-display text-xl font-bold text-butter mb-10 text-glow">{PHASE_LABEL[breathPhase]}</p>
-          <div className="w-52 h-52 rounded-full border-4 border-mint/30 flex items-center justify-center">
-            <div className="w-40 h-40 rounded-full bg-mint/25 border border-mint/50"
+        <div className="fixed inset-0 z-50 bg-night-950/90 flex flex-col items-center justify-center anim-fade p-4" onClick={() => setBreathing(false)}>
+          <p className="font-display text-lg sm:text-xl font-bold text-butter mb-6 sm:mb-10 text-glow text-center">{PHASE_LABEL[breathPhase]}</p>
+          <div className="w-40 h-40 sm:w-52 sm:h-52 rounded-full border-4 border-mint/30 flex items-center justify-center shrink-0">
+            <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-mint/25 border border-mint/50"
               style={{ animation: `breatheCircle ${breathPhase === 'in' ? 4 : breathPhase === 'hold' ? 2 : 6}s ease-in-out both`, boxShadow: '0 0 60px rgba(159,232,201,0.35)' }} />
           </div>
-          <p className="mt-10 text-sm font-bold text-cream/50">круг {Math.min(cycles + 1, 4)} из 4 · коснитесь, чтобы выйти</p>
+          <p className="mt-6 sm:mt-10 text-xs sm:text-sm font-bold text-cream/50 text-center">круг {Math.min(cycles + 1, 4)} из 4 · коснитесь, чтобы выйти</p>
         </div>
       )}
     </div>

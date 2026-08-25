@@ -31,24 +31,27 @@ export default function HUD({ pet, coins, weather, soundOn, onToggleSound, onOpe
 
   return (
     <div className="space-y-3">
-      {/* шапка */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex items-center gap-2 mr-auto">
-          <span className="font-display text-lg font-bold tracking-tight text-butter text-glow">Люмос</span>
-          <span className="chip text-cream/85">{pet.name}</span>
-          <span className="chip" style={{ color: '#c8b6ff' }}>{stage.label} · {ageDays} дн</span>
-        </div>
-        <button className="btn btn-ghost !p-2.5" onClick={onToggleSound} aria-label="Звук">
+      {/* шапка: бренд и кнопки в строке, имя и стадия — ниже */}
+      <div className="flex items-center gap-2">
+        <span className="font-display text-lg font-bold tracking-tight text-butter text-glow mr-auto">Люмос</span>
+        <button className="btn btn-ghost !p-2 sm:!p-2.5" onClick={onToggleSound} aria-label="Звук">
           <Icon name={soundOn ? 'soundOn' : 'soundOff'} className="w-5 h-5" />
         </button>
-        <button className="btn btn-ghost !p-2.5" onClick={onOpenSettings} aria-label="Настройки">
+        <button className="btn btn-ghost !p-2 sm:!p-2.5" onClick={onOpenSettings} aria-label="Настройки">
           <Icon name="gear" className="w-5 h-5" />
         </button>
       </div>
+      <div className="flex items-center gap-1.5 flex-wrap -mt-1">
+        <span className="chip text-cream/85">{pet.name}</span>
+        <span className="chip" style={{ color: '#c8b6ff' }}>{stage.label} · {ageDays} дн</span>
+        {pet.evolutionTraits.length > 0 && (
+          <span className="chip text-lilac !border-lilac/30"><Icon name="spark" className="w-3 h-3" />{pet.evolutionTraits.length}</span>
+        )}
+      </div>
 
       {/* уровень и искры */}
-      <div className="flex items-center gap-3">
-        <div className="flex-1">
+      <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+        <div className="flex-1 min-w-[150px]">
           <div className="flex justify-between text-[11px] font-extrabold text-cream/60 mb-1">
             <span>Уровень {pet.growth.level}</span>
             <span>{Math.floor(pet.growth.xp)} / {xpNeed} опыта</span>

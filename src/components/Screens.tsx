@@ -36,8 +36,8 @@ export function Onboarding() {
 
   if (phase === 'intro') {
     return (
-      <div className="min-h-dvh flex items-center justify-center p-4">
-        <div className="card p-6 sm:p-8 max-w-md w-full text-center anim-fade-up">
+      <div className="min-h-dvh flex p-4 overflow-y-auto">
+        <div className="card p-5 sm:p-8 max-w-md w-full m-auto text-center anim-fade-up">
           <div className="mx-auto mb-4 w-16 h-16 rounded-3xl flex items-center justify-center text-butter" style={{ background: 'rgba(255,217,142,0.12)', animation: 'pulseSoft 3s ease-in-out infinite' }}>
             <Icon name="spark" className="w-8 h-8" />
           </div>
@@ -74,11 +74,12 @@ export function Onboarding() {
 
   if (phase === 'egg') {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center p-4">
-        <p className="font-display font-bold text-cream/80 text-lg mb-2 anim-fade">В траве что-то светится…</p>
-        <p className="text-[12px] font-bold text-cream/45 mb-8">Постучите по яйцу {5 - taps > 0 ? `ещё ${5 - taps} раз(а)` : '— оно отвечает!'}</p>
+      <div className="min-h-dvh flex p-4 overflow-y-auto">
+        <div className="m-auto flex flex-col items-center">
+        <p className="font-display font-bold text-cream/80 text-lg mb-1.5 sm:mb-2 anim-fade text-center">В траве что-то светится…</p>
+        <p className="text-[12px] font-bold text-cream/45 mb-5 sm:mb-8 text-center">Постучите по яйцу {5 - taps > 0 ? `ещё ${5 - taps} раз(а)` : '— оно отвечает!'}</p>
         <button onClick={tapEgg} className={`relative ${taps < 5 ? 'anim-egg' : ''} active:scale-90 transition-transform`} aria-label="Постучать по яйцу">
-          <svg width="200" height="230" viewBox="0 0 200 230">
+          <svg className="w-[min(56vw,200px)] h-auto" viewBox="0 0 200 230">
             <ellipse cx="100" cy="196" rx="70" ry="16" fill="#0c1220" opacity="0.5" />
             <path d="M100 18 C150 18 168 90 168 132 C168 178 138 208 100 208 C62 208 32 178 32 132 C32 90 50 18 100 18 Z" fill="#fff3e2" stroke="#ffd9a8" strokeWidth="4" />
             <circle cx="78" cy="90" r="9" fill="#ffb49b" opacity="0.7" />
@@ -99,8 +100,9 @@ export function Onboarding() {
           </svg>
           <div className="absolute -inset-6 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(255,217,142,0.15) 0%, transparent 70%)', animation: 'pulseSoft 2.4s ease-in-out infinite' }} />
         </button>
-        <div className="flex gap-1.5 mt-6">
+        <div className="flex gap-1.5 mt-5 sm:mt-6">
           {[0, 1, 2, 3, 4].map(i => <span key={i} className={`w-2.5 h-2.5 rounded-full transition-all ${i < taps ? 'bg-butter scale-110' : 'bg-night-600'}`} />)}
+        </div>
         </div>
       </div>
     );
@@ -115,7 +117,7 @@ export function RevealSheet({ pet, onDone, embedded = false }: { pet: Pet; onDon
   const sp = speciesOf(pet.dna.species);
   const ab = abilityOf(pet.dna);
   const body = (
-    <div className={`card max-w-md w-full anim-fade-up overflow-hidden ${embedded ? '' : 'max-h-[88vh] overflow-y-auto'}`}>
+    <div className="card max-w-md w-full m-auto anim-fade-up max-h-[92dvh] overflow-x-hidden overflow-y-auto no-scrollbar">
       <div className="p-5 pb-0 text-center relative" style={{ background: `radial-gradient(ellipse at 50% 30%, ${pet.dna.aura}22 0%, transparent 70%)` }}>
         <p className="font-display font-bold text-butter text-glow text-xl">Знакомьтесь!</p>
         <div className="flex justify-center my-2"><PetSprite pet={pet} size={200} interactive={false} /></div>
@@ -140,15 +142,15 @@ export function RevealSheet({ pet, onDone, embedded = false }: { pet: Pet; onDon
       </div>
     </div>
   );
-  if (embedded) return <div className="min-h-dvh flex items-center justify-center p-4">{body}</div>;
-  return <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-night-950/85 anim-fade">{body}</div>;
+  if (embedded) return <div className="min-h-dvh flex p-4 overflow-y-auto">{body}</div>;
+  return <div className="fixed inset-0 z-50 flex p-4 overflow-y-auto bg-night-950/85 anim-fade">{body}</div>;
 }
 
 /* ================= С ВОЗВРАЩЕНИЕМ ================= */
 export function WelcomeBack({ awayMs, events, line, petName }: { awayMs: number; events: OfflineEvent[]; line: string; petName: string }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-night-950/90 anim-fade overflow-y-auto">
-      <div className="card max-w-md w-full p-5 anim-pop my-8">
+    <div className="fixed inset-0 z-50 flex p-4 bg-night-950/90 anim-fade overflow-y-auto">
+      <div className="card max-w-md w-full m-auto p-4 sm:p-5 anim-pop">
         <div className="text-center mb-4">
           <div className="mx-auto w-12 h-12 rounded-2xl flex items-center justify-center text-butter mb-2" style={{ background: 'rgba(255,217,142,0.12)' }}>
             <Icon name="moon" className="w-6 h-6" />
@@ -182,8 +184,8 @@ export function WelcomeBack({ awayMs, events, line, petName }: { awayMs: number;
 /* ================= ПРОЩАНИЕ С ДУХОМ ================= */
 export function Farewell({ entry, onNewGen, onKeep }: { entry: LegacyEntry; onNewGen: () => void; onKeep: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 anim-fade overflow-y-auto" style={{ background: 'radial-gradient(ellipse at 50% 30%, #2a2547 0%, #0c1220 75%)' }}>
-      <div className="card max-w-md w-full p-6 text-center anim-pop my-8">
+    <div className="fixed inset-0 z-50 flex p-4 anim-fade overflow-y-auto" style={{ background: 'radial-gradient(ellipse at 50% 30%, #2a2547 0%, #0c1220 75%)' }}>
+      <div className="card max-w-md w-full m-auto p-5 sm:p-6 text-center anim-pop">
         <div className="mx-auto w-16 h-16 rounded-full mb-3 flex items-center justify-center" style={{ background: `${entry.colorPrimary}33`, boxShadow: `0 0 40px ${entry.colorPrimary}55`, animation: 'pulseSoft 3s ease-in-out infinite' }}>
           <Icon name="star" className="w-8 h-8 text-butter" />
         </div>
@@ -212,8 +214,8 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
   const [confirmReset, setConfirmReset] = useState(false);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-night-950/85 anim-fade overflow-y-auto">
-      <div className="card max-w-md w-full p-5 anim-pop my-8 space-y-3.5">
+    <div className="fixed inset-0 z-50 flex p-4 bg-night-950/85 anim-fade overflow-y-auto">
+      <div className="card max-w-md w-full m-auto p-4 sm:p-5 anim-pop space-y-3.5 max-h-[92dvh] overflow-y-auto no-scrollbar">
         <div className="flex items-center justify-between">
           <h2 className="font-display font-bold text-lg text-butter">Настройки</h2>
           <button className="btn btn-ghost !p-2" onClick={onClose} aria-label="Закрыть"><Icon name="close" className="w-5 h-5" /></button>
