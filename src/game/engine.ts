@@ -98,14 +98,45 @@ class Engine {
       const raw = localStorage.getItem(KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as GameState;
-      if (parsed && parsed.version === 1 && 'pet' in parsed) {
-        this.state = { ...defaultState(), ...parsed };
-        if (this.state.owner.city === undefined) this.state.owner.city = '';
-        if (this.state.owner.geo === undefined) this.state.owner.geo = null;
-        if (this.state.pet) this.state.pet.knowledge = this.state.pet.knowledge ?? [];
-        this.state.fx = null;
+      if (!parsed || parsed.version !== 1 || typeof parsed !== 'object') return;
+      // строгая валидация: повреждённый или слишком старый сейв отбрасываем,
+      // чтобы игра всегда запускалась
+      if (!this.isValid(parsed)) { localStorage.removeItem(KEY); return; }
+      this.state = { ...defaultState(), ...parsed };
+      const s = this.state;
+      const d = defaultState();
+      const fill = <T extends object>(def: T, v: Partial<T> | null | undefined): T => ({ ...def, ...(v ?? {}) });
+      s.owner = fill(d.owner, s.owner);
+      s.settings = fill(d.settings, s.settings);
+      if (s.pet) {
+        s.pet.stats = fill({ hunger: 70, energy: 85, mood: 78, cleanliness: 90 }, s.pet.stats);
+        s.pet.growth = fill({ xp: 0, level: 1, bornAt: Date.now(), skills: {} as Record<string, number> }, s.pet.growth);
+        s.pet.outfit = fill<Pet['outfit']>({ hat: null, scarf: null, glasses: null, wings: null }, s.pet.outfit);
+        s.pet.personality = fill<Pet['personality']>({ temperament: 'любопытный', likes: [], dislikes: [], traits: ['любопытный'] }, s.pet.personality);
+        s.pet.knowledge = Array.isArray(s.pet.knowledge) ? s.pet.knowledge : [];
+        s.pet.wordsLearned = Array.isArray(s.pet.wordsLearned) ? s.pet.wordsLearned : [];
+        s.pet.evolutionTraits = Array.isArray(s.pet.evolutionTraits) ? s.pet.evolutionTraits : [];
       }
-    } catch { /* повреждённый сейв — начинаем заново */ }
+      s.inventory = (s.inventory && typeof s.inventory === 'object') ? s.inventory : {};
+      s.furniture = Array.isArray(s.furniture) ? s.furniture : ['furn_rug'];
+      s.counters = (s.counters && typeof s.counters === 'object') ? s.counters : {};
+      s.fx = null;
+    } catch {
+      try { localStorage.removeItem(KEY); } catch { /* noop */ }
+    }
+  }
+
+  private isValid(s: GameState): boolean {
+    if (!Array.isArray(s.memories) || !Array.isArray(s.diary) || !Array.isArray(s.dreams) || !Array.isArray(s.quests)) return false;
+    if (s.owner && typeof s.owner !== 'object') return false;
+    const p = s.pet as Pet | null;
+    if (p) {
+      if (!p.dna || typeof p.dna !== 'object' || typeof p.dna.species !== 'string') return false;
+      if (!p.stats || typeof p.stats !== 'object') return false;
+      if (!p.growth || typeof p.growth !== 'object' || typeof p.growth.bornAt !== 'number') return false;
+      if (!p.personality || !Array.isArray(p.personality.likes)) return false;
+    }
+    return true;
   }
   private commit() { this.save(); this.emit(); }
 

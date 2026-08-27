@@ -2,7 +2,7 @@
  * ЛЮМОС — карманный дух-компаньон.
  * Корневой компонент: игровой цикл, сцена, навигация, оверлеи.
  * ============================================================ */
-import { useEffect, useMemo, useState } from 'react';
+import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from 'react';
 import { engine, timePhase, getWeather } from './game/engine';
 import PetSprite from './components/PetSprite';
 import RoomScene from './components/Room';
@@ -31,7 +31,7 @@ const TABS = [
 const PHASE_LABEL = { morning: 'Утро', day: 'День', evening: 'Вечер', night: 'Ночь' } as const;
 const PHASE_ICON = { morning: 'sun', day: 'sun', evening: 'cloud', night: 'moon' } as const;
 
-export default function App() {
+function Game() {
   const [s, setS] = useState(engine.state);
   const [tab, setTab] = useState<'scene' | 'care' | 'games' | 'chat' | 'journal' | 'doc'>('scene');
   const [showSettings, setShowSettings] = useState(false);
@@ -47,7 +47,7 @@ export default function App() {
   const phase = timePhase();
 
   useEffect(() => {
-    engine.start();
+    try { engine.start(); } catch (e) { console.error('Ошибка старта движка:', e); }
     const unsub = engine.subscribe(() => { setS({ ...engine.state }); force(x => x + 1); });
     const loop = setInterval(() => engine.tick(), 4000);
     const saveInt = setInterval(() => engine.save(), 30000);
@@ -321,5 +321,43 @@ function FxLayer({ fx }: { fx: { kind: 'pet' | 'clean' | 'bath'; at: number } })
         <Icon name="drop" className="w-5 h-5" />
       </span>
     </div>
+  );
+}
+
+/* ---------- защитный экран запуска ---------- */
+class LaunchBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error('Люмос упал:', error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-dvh flex p-4" style={{ background: 'radial-gradient(ellipse at 20% 0%, #1c2a52 0%, #10172b 55%)' }}>
+          <div className="card max-w-md w-full m-auto p-6 text-center anim-fade-up">
+            <div className="mx-auto mb-3 w-14 h-14 rounded-2xl flex items-center justify-center text-ember" style={{ background: 'rgba(255,143,125,0.12)' }}>
+              <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5" /><circle cx="12" cy="16.5" r="0.6" fill="currentColor" /></svg>
+            </div>
+            <h2 className="font-display text-lg font-bold text-butter">Люмос споткнулся…</h2>
+            <p className="text-[12.5px] font-bold text-cream/60 mt-2 leading-relaxed">
+              Что-то пошло не так при запуске. Скорее всего, виновато старое сохранение. Его можно сбросить — начнём новую историю.
+            </p>
+            <p className="text-[10.5px] font-bold text-cream/35 mt-2 break-words">{String(this.state.error?.message ?? this.state.error)}</p>
+            <div className="flex flex-col gap-2 mt-5">
+              <button className="btn btn-primary" onClick={() => { engine.resetAll(); location.reload(); }}>Сбросить сохранение и запустить</button>
+              <button className="btn btn-ghost !text-xs" onClick={() => location.reload()}>Просто перезагрузить</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function App() {
+  return (
+    <LaunchBoundary>
+      <Game />
+    </LaunchBoundary>
   );
 }
