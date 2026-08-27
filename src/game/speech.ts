@@ -3,6 +3,8 @@
  * эмпатия, воспоминания, сны, дневник, проактивные реплики.
  * ============================================================ */
 import type { GameState } from './types';
+import { SPECIES, abilityFlavor } from './dna';
+import { FALLBACK_FACTS } from './knowledge';
 
 const R = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
@@ -87,12 +89,72 @@ export const OFFLINE_EVENTS = {
   song: 'напевал колыбельную для кактуса. Кактусу понравилось',
 };
 
-export interface BrainResult { lines: string[]; save?: { kind: 'факт' | 'обещание' | 'шутка' | 'эмоция'; text: string }; favorite?: string; ownerName?: string; moodDelta?: number; }
+export interface BrainResult { lines: string[]; save?: { kind: 'факт' | 'обещание' | 'шутка' | 'эмоция' | 'момент'; text: string }; favorite?: string; ownerName?: string; moodDelta?: number; }
+
+/* Питомец выбирает встречный вопрос — о том, чего ещё не знает о хозяине.
+   Записывает его в state.dialog.pendingQuestion, чтобы распознать ответ. */
+function followUp(state: GameState): string {
+  const dlg = state.dialog;
+  if (!state.owner.name) {
+    dlg.pendingQuestion = 'name';
+    return 'А как тебя зовут? Мне очень хочется знать.';
+  }
+  if (!state.owner.favorites.length && Math.random() < 0.6) {
+    dlg.pendingQuestion = 'favorite';
+    return 'А что тебе больше всего нравится делать? Расскажи!';
+  }
+  const opts: Array<[GameState['dialog']['pendingQuestion'], string]> = [
+    ['mood', 'А как у тебя сегодня настроение?'],
+    ['day', 'Как прошёл твой день? Расскажешь?'],
+  ];
+  const [key, q] = opts[Math.floor(Math.random() * opts.length)];
+  dlg.pendingQuestion = key;
+  return q;
+}
 
 export function chatBrain(text: string, state: GameState): BrainResult {
   const t = text.toLowerCase().trim();
-  const petName = state.pet?.name ?? 'питомец';
+  const pet = state.pet!;
+  const petName = pet.name;
   const ownerName = state.owner.name ? `, ${state.owner.name}` : '';
+  const st = pet.stats;
+  const dlg = state.dialog;
+
+  /* ============ 0) Контекст: хозяин отвечает на вопрос питомца ============ */
+  if (dlg.pendingQuestion) {
+    const q = dlg.pendingQuestion;
+    dlg.pendingQuestion = null;
+    if (q === 'name') {
+      const nm = t.replace(/^(меня зовут|мо[её] имя|звать меня)\s*/i, '').trim().split(/[\s,.!?]+/)[0];
+      if (nm && nm.length >= 2 && nm.length <= 20) {
+        const name = nm.charAt(0).toUpperCase() + nm.slice(1);
+        return {
+          lines: [`${name}! Какое красивое имя. Теперь я буду звать тебя только так.`, `Приятно познакомиться, ${name}! А я — ${petName}.`],
+          save: { kind: 'факт', text: `Хозяина зовут ${name}` }, ownerName: name, moodDelta: 3,
+        };
+      }
+    } else if (q === 'mood') {
+      const good = /(хорош|отличн|прекрасн|супер|классн|здоров|нормальн|неплох|весел|радост)/.test(t);
+      const bad = /(плохо|ужасн|грустн|устал|тяжел|печаль|одиноко|болит)/.test(t);
+      state.owner.moods.push(good ? 85 : bad ? 30 : 60);
+      if (good) return { lines: ['Вот и чудесно! Когда у тебя хорошо — у меня хвост сам собой виляет.', 'Так держать! Может, сделаем что-нибудь приятное вместе?'], moodDelta: 3 };
+      if (bad) return { lines: ['Ой… иди ко мне. Расскажи, что случилось?', 'Я рядом. Давай посидим тихо-тихо, а потом станет легче. Обещаю.'], save: { kind: 'эмоция', text: 'Хозяину было грустно — обнял крепко' }, moodDelta: 4 };
+      return { lines: ['Понятненько. Главное — береги себя, ладно?', 'Спасибо, что рассказал. Мне правда важно знать.'], moodDelta: 2 };
+    } else if (q === 'day') {
+      const nice = /(хорош|отличн|интересн|весел|продуктивн)/.test(t);
+      return {
+        lines: ['Спасибо, что поделился! Записал в наш общий дневник.', `Звучит как ${nice ? 'чудесный' : 'непростой'} день. Я горжусь тобой в любом случае.`],
+        save: { kind: 'момент', text: `Хозяин рассказал про день: ${text.slice(0, 70)}` }, moodDelta: 3,
+      };
+    } else if (q === 'favorite') {
+      const fav = text.replace(/[.!]/g, '').trim().slice(0, 40);
+      if (fav) {
+        if (!state.owner.favorites.includes(fav)) state.owner.favorites.push(fav);
+        return { lines: [`«${fav}»! Теперь это и моё любимое тоже.`, 'Запомнил навсегда. Будем заниматься этим вместе!'], save: { kind: 'факт', text: `Любимое: ${fav}` }, favorite: fav, moodDelta: 2 };
+      }
+    }
+    /* если ответ не распознан — продолжаем обычный разбор ниже */
+  }
 
   let m = t.match(/(?:меня зовут|мо[её] имя|звать меня)\s+([a-zа-яё]+(?:-[a-zа-яё]+)?)/i);
   if (m) {
@@ -144,14 +206,104 @@ export function chatBrain(text: string, state: GameState): BrainResult {
       save: { kind: 'эмоция', text: 'Разделили радость — день стал искристым' }, moodDelta: 5,
     };
   }
-  if (/^(привет|здравств|хай|добр|салют|hello|hi)/.test(t)) {
-    return { lines: [R(GREETINGS.day).replace('{owner}', ownerName), R(QUESTIONS_FOR_OWNER)] };
+  /* ---------- кто я / как меня зовут (питомец рассказывает о себе) ---------- */
+  if (/(как тебя зовут|тво[её] имя|кто ты|расскажи о себе)/.test(t)) {
+    const sp = SPECIES.find(x => x.key === pet.dna.species);
+    return {
+      lines: [
+        `Меня зовут ${petName}! Я ${sp?.label ?? 'маленькое чудо'}${sp ? ` — ${sp.desc.toLowerCase()}` : ''}.`,
+        `А ещё я ${abilityFlavor(pet.dna.abilityId)}. И очень-очень рад, что ты со мной.`,
+      ],
+      moodDelta: 2,
+    };
   }
-  if (/(как дела|как ты|как поживаешь|что нового)/.test(t)) {
-    const s = state.pet!.stats;
-    const moodWord = s.mood > 70 ? 'искристо' : s.mood > 45 ? 'уютно' : 'немного туманно';
-    const hunger = s.hunger < 40 ? ' И немножко хочется лунного печенья.' : '';
-    return { lines: [`У меня всё ${moodWord}!${hunger}`, `А ещё я ${state.pet!.wordsLearned.length > 0 ? `выучил слово «${state.pet!.wordsLearned[state.pet!.wordsLearned.length - 1]}»` : 'учусь мечтать правильнее'}.`] };
+
+  /* ---------- приветствие (по времени суток + встречный вопрос) ---------- */
+  if (/^(привет|здравств|хай|добр|салют|hello|hi|ку|йо)/.test(t)) {
+    const hour = new Date().getHours();
+    const bank = hour < 5 ? GREETINGS.night : hour < 11 ? GREETINGS.morning : hour < 17 ? GREETINGS.day : hour < 22 ? GREETINGS.evening : GREETINGS.night;
+    return { lines: [R(bank).replace('{owner}', ownerName), followUp(state)], moodDelta: 2 };
+  }
+
+  /* ---------- как дела / как настроение ---------- */
+  if (/(как дела|как ты|как поживаешь|как настроен|что нового|как себя чувствуешь)/.test(t)) {
+    const moodWord = st.mood > 70 ? 'искристо' : st.mood > 45 ? 'уютно' : 'немного туманно';
+    const hunger = st.hunger < 35 ? ' И немножко хочется лунного печенья.' : '';
+    const energy = st.energy < 30 ? ' Только глазки уже слипаются…' : '';
+    const learned = pet.wordsLearned.length > 0
+      ? `А ещё я выучил слово «${pet.wordsLearned[pet.wordsLearned.length - 1]}»!`
+      : 'А ещё я учусь мечтать правильнее.';
+    return {
+      lines: [`У меня всё ${moodWord}!${hunger}${energy}`, learned, followUp(state)],
+      moodDelta: 2,
+    };
+  }
+
+  /* ---------- что ты сегодня делал ---------- */
+  if (/(что делал|чем занимался|что ты делал|как прош[её]л твой день)/.test(t)) {
+    const bits: string[] = [];
+    const feed = state.counters.feed ?? 0;
+    if (feed > 0) bits.push(`меня кормили ${feed} раз(а)`);
+    if (state.counters.play) bits.push('мы играли');
+    if (state.counters.walk) bits.push('мы гуляли');
+    const dream = state.dreams[0];
+    if (dream) bits.push(`видел сон про ${dream.text.replace(/^Мне снился /, '').split(',')[0]}`);
+    const did = bits.length ? bits.join(', ') : 'пересчитывал пылинки и сторожил окно';
+    return {
+      lines: [
+        `Сегодня ${did}.`,
+        pet.wordsLearned.length ? `И да — я выучил слово «${pet.wordsLearned[pet.wordsLearned.length - 1]}». Горжусь собой.` : 'И немножко помечтал. Это тоже дело, между прочим.',
+      ],
+      moodDelta: 2,
+    };
+  }
+
+  /* ---------- который час / какое число ---------- */
+  if (/(который час|сколько времени|какое число|какой день)/.test(t)) {
+    const now = new Date();
+    return { lines: [`Сейчас ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}, ${now.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}. Время летит, когда мы вместе!`] };
+  }
+
+  /* ---------- какая погода ---------- */
+  if (/(какая погода|что за окном|на улице)/.test(t)) {
+    const wr = state.weatherReal;
+    if (wr) return { lines: [`За окном ${wr.label.toLowerCase()}. Я проверил — высунул нос и быстро спрятал.`, wr.kind === 'rain' || wr.kind === 'snow' ? 'Так что сегодня идеальный день, чтобы побыть в тепле со мной.' : 'Пойдём погуляем?'] };
+    return { lines: ['Я выглянул в окно — там небо. Красивое! Но точнее не скажу: я же маленький. Расскажи, какая у тебя погода?'] };
+  }
+
+  /* ---------- что ты умеешь ---------- */
+  if (/(что ты умеешь|что можешь|твои способности)/.test(t)) {
+    return { lines: ['Я умею многое! Играть в игры, учить слова, гулять, спать и видеть сны, помнить всё, что ты мне расскажешь.', 'А ещё я расту: чем больше мы занимаемся, тем умнее и красивее я становлюсь. Попробуй меня поучить!'] };
+  }
+
+  /* ---------- что ты помнишь ---------- */
+  if (/(что ты помнишь|что помнишь|твои воспоминания)/.test(t)) {
+    if (!state.memories.length) return { lines: ['Пока у меня мало воспоминаний — мы ведь недавно знакомы. Но я всё записываю!'] };
+    const mem = state.memories.slice(0, 3).map(x => x.text.toLowerCase());
+    return { lines: [`Я помню многое! Например: ${mem.join('; ')}.`, 'И это только начало. Я всё-всё записываю.'] };
+  }
+
+  /* ---------- спой ---------- */
+  if (/(спой|спо[её]шь|песенку|песню)/.test(t)) {
+    return { lines: ['♪ Ла-ла-ла, звёзды-светлячки, ♪ ♪ спать легли в свои сундучки… ♪', 'Это моя колыбельная! Я сочинил её сам. Ну… почти сам.'] };
+  }
+
+  /* ---------- расскажи факт / что-нибудь интересное ---------- */
+  if (/(расскажи факт|какой-нибудь факт|что-нибудь интересное|расскажи что-нибудь|удиви меня)/.test(t)) {
+    const f = FALLBACK_FACTS[Math.floor(Math.random() * FALLBACK_FACTS.length)];
+    return {
+      lines: [`О! Я недавно узнал: ${f.title.toLowerCase()}. ${f.text}`, 'Правда, здорово? Я теперь самый умный малыш в округе!'],
+      save: { kind: 'факт', text: `${f.title}: ${f.text.slice(0, 80)}` }, moodDelta: 2,
+    };
+  }
+
+  /* ---------- простая математика ---------- */
+  const calc = t.match(/сколько будет\s+(\d+)\s*([+\-*/xх×])\s*(\d+)/);
+  if (calc) {
+    const a = parseInt(calc[1], 10), b = parseInt(calc[3], 10);
+    const op = calc[2].replace(/[xх×]/, '*');
+    const val = op === '+' ? a + b : op === '-' ? a - b : op === '*' ? a * b : (b !== 0 ? Math.round((a / b) * 100) / 100 : 'нельзя делить на ноль!');
+    return { lines: [`${a} ${op === '*' ? '×' : op} ${b} будет ${val}!`, 'Я считал на пальцах. На всех сразу. Получилось быстро!'] };
   }
   if (/(шутк|анекдот|смешн|ха-ха|хаха|ахах)/.test(t)) {
     return {
@@ -170,18 +322,19 @@ export function chatBrain(text: string, state: GameState): BrainResult {
     const mem = R(state.memories);
     recall.push(`Кстати, я помню: ${mem.text.toLowerCase()}. Я всё помню.`);
   }
-  return {
-    lines: [
-      R([
-        'Хм-м… как интересно! Расскажи ещё — я записываю каждое слово в невидимый блокнотик.',
-        'Я пока маленький и многого не знаю, но я ОЧЕНЬ стараюсь понять.',
-        'Запишу это в коллекцию твоих слов. У меня уже целая полка!',
-        `Мне нравится, как ты рассказываешь${ownerName}. Продолжай, а я буду кивать умно.`,
-      ]),
-      ...(recall.length ? recall : [Math.random() < 0.4 ? R(QUESTIONS_FOR_OWNER) : '']),
-    ].filter(Boolean),
-    moodDelta: 1,
-  };
+  const lead = R([
+    'Хм-м… как интересно! Расскажи ещё — я записываю каждое слово в невидимый блокнотик.',
+    'Я пока маленький и многого не знаю, но я ОЧЕНЬ стараюсь понять.',
+    'Запишу это в коллекцию твоих слов. У меня уже целая полка!',
+    `Мне нравится, как ты рассказываешь${ownerName}. Продолжай, а я буду кивать умно.`,
+  ]);
+  /* чередуем: то питомец делится, то спрашивает — разговор живёт */
+  const tail = recall.length
+    ? recall[0]
+    : Math.random() < 0.5
+      ? followUp(state)
+      : R(QUESTIONS_FOR_OWNER);
+  return { lines: [lead, tail], moodDelta: 1 };
 }
 
 export function proactiveLine(state: GameState): string {

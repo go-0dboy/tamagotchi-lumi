@@ -69,9 +69,20 @@ export default function ChatPanel({ state }: { state: GameState }) {
     return () => clearInterval(iv);
   }, [state.focusEndsAt, state.focusMinutes]);
 
-  const send = () => {
-    const t = text.trim();
+  /* «печатает…»: включаем при отправке, гасим, когда пришёл ответ питомца */
+  const [typing, setTyping] = useState(false);
+  const sentLen = useRef(state.chat.length);
+  useEffect(() => {
+    if (typing && state.chat.length > sentLen.current && state.chat[state.chat.length - 1].from === 'pet') {
+      setTyping(false);
+    }
+  }, [state.chat, typing]);
+
+  const send = (raw?: string) => {
+    const t = (raw ?? text).trim();
     if (!t) return;
+    sentLen.current = state.chat.length;
+    setTyping(true);
     engine.sendChat(t);
     setText('');
     sfx.tap();
@@ -122,11 +133,31 @@ export default function ChatPanel({ state }: { state: GameState }) {
                 </div>
               </div>
             ))}
+            {typing && (
+              <div className="flex justify-start">
+                <div className="bg-night-700/80 border border-sky/10 rounded-2xl rounded-bl-md px-4 py-3 flex gap-1.5 items-center anim-fade-up">
+                  <span className="w-2 h-2 rounded-full bg-butter anim-blink" style={{ animationDelay: '0s' }} />
+                  <span className="w-2 h-2 rounded-full bg-butter anim-blink" style={{ animationDelay: '0.18s' }} />
+                  <span className="w-2 h-2 rounded-full bg-butter anim-blink" style={{ animationDelay: '0.36s' }} />
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* быстрые подсказки-вопросы */}
+          <div className="flex gap-1.5 flex-wrap mb-2">
+            {['Привет!', 'Как дела?', 'Что делал сегодня?', 'Кто ты?', 'Расскажи факт'].map(q => (
+              <button key={q} onClick={() => send(q)}
+                className="chip !text-[10.5px] !py-1.5 hover:border-butter/50 hover:text-butter transition-all active:scale-95">
+                {q}
+              </button>
+            ))}
+          </div>
+
           <div className="flex gap-2">
             <input className="input-soft flex-1 min-w-0" placeholder={`Напишите ${pet.name}…`} value={text}
               onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} maxLength={140} />
-            <button className="btn btn-butter !px-4" onClick={send} aria-label="Отправить"><Icon name="chat" className="w-5 h-5" /></button>
+            <button className="btn btn-butter !px-4" onClick={() => send()} aria-label="Отправить"><Icon name="chat" className="w-5 h-5" /></button>
           </div>
         </>
       ) : (

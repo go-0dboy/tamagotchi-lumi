@@ -81,6 +81,7 @@ function defaultState(): GameState {
     freshHatch: false,
     fx: null,
     weatherReal: null,
+    dialog: { pendingQuestion: null, lastIntent: '', turn: 0 },
   };
 }
 
@@ -172,7 +173,7 @@ class Engine {
     } catch { /* повреждённый мозг — вырастим новый */ }
     const lm = new MiniLM();
     lm.buildVocab(baseCorpus());
-    lm.train(baseCorpus(), 2, 0.1);
+    lm.train(baseCorpus(), 3, 0.12); // предобучение: сеть сразу говорит связно
     this.lm = lm;
     this.saveBrain();
   }

@@ -124,4 +124,9 @@ export interface GameState {
   freshHatch: boolean;
   fx: { kind: 'pet' | 'clean' | 'bath'; at: number } | null;
   weatherReal: { kind: string; label: string; temp: number; at: number } | null;
+  dialog: {
+    pendingQuestion: 'name' | 'mood' | 'day' | 'favorite' | null; // вопрос, который питомец задал и ждёт ответа
+    lastIntent: string;
+    turn: number;
+  };
 }
