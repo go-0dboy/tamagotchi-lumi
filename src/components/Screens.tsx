@@ -249,6 +249,9 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
   const [importCode, setImportCode] = useState('');
   const [confirmReset, setConfirmReset] = useState(false);
   const [city, setCity] = useState(state.owner.city);
+  const [brainCode, setBrainCode] = useState('');
+  const [showBrainImport, setShowBrainImport] = useState(false);
+  const brain = engine.brainInfo();
   const flash = (text: string, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg(null), 2600); };
 
   const doExport = () => {
@@ -276,6 +279,23 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
     }
     engine.resetAll();
     onClose();
+  };
+
+  const doExportBrain = () => {
+    const code = engine.exportBrain();
+    if (!code) { flash('Мозг ещё не вырос', false); return; }
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(code)
+        .then(() => flash('Модель мозга скопирована!'))
+        .catch(() => prompt('Скопируйте модель мозга:', code));
+    } else prompt('Скопируйте модель мозга:', code);
+  };
+  const doImportBrain = () => {
+    if (!brainCode.trim()) { flash('Вставьте код модели в поле', false); return; }
+    if (engine.importBrain(brainCode)) {
+      flash('Мозг загружен! Питомец стал умнее.');
+      setShowBrainImport(false); setBrainCode('');
+    } else flash('Не удалось прочитать модель мозга', false);
   };
 
   return (
@@ -326,6 +346,32 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
             </button>
           </div>
           <p className="text-[10.5px] font-bold text-cream/35 mt-1.5 leading-snug">Настоящая погода из Open-Meteo появится за окном, а на прогулках — улицы вашего города.</p>
+        </div>
+
+        <div className="card-soft p-3.5">
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <div className="flex items-center gap-2.5 text-cream/85">
+              <Icon name="brain" className="w-5 h-5 text-lilac" />
+              <span className="text-[13px] font-extrabold">Нейросеть питомца</span>
+            </div>
+            <span className={`chip !text-[10px] ${brain.ready ? 'text-mint' : 'text-cream/40'}`}>
+              {brain.ready ? `знает ${brain.words} слов` : 'растёт…'}
+            </span>
+          </div>
+          <p className="text-[10.5px] font-bold text-cream/40 leading-snug mb-2.5">
+            Маленькая языковая модель учится на разговорах, фактах и снах. Обработано {brain.tokens.toLocaleString('ru-RU')} слов. Хранится вместе с питомцем, выгружается отдельной моделью.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button className="btn btn-lilac !py-2 !text-xs" onClick={doExportBrain}><Icon name="export" className="w-4 h-4" />Модель</button>
+            <button className="btn btn-ghost !py-2 !text-xs" onClick={() => setShowBrainImport(v => !v)}><Icon name="import" className="w-4 h-4" />Вживить</button>
+          </div>
+          {showBrainImport && (
+            <div className="anim-fade-up space-y-2 mt-2">
+              <textarea value={brainCode} onChange={e => setBrainCode(e.target.value)} placeholder="Вставьте код модели мозга…"
+                className="input-soft !text-[10px] !leading-relaxed h-20 resize-none no-scrollbar" aria-label="Код модели мозга" />
+              <button className="btn btn-lilac w-full !py-2 !text-xs" onClick={doImportBrain}><Icon name="import" className="w-4 h-4" />Загрузить мозг</button>
+            </div>
+          )}
         </div>
 
         <p className="text-[11px] font-bold text-cream/40 leading-relaxed px-1">

@@ -215,7 +215,7 @@ export default function CarePanel({ state, goScene }: { state: GameState; goScen
                 <div className="text-[10.5px] font-bold text-cream/40 leading-snug">{it.desc}</div>
               </div>
               {it.kind === 'gift' || it.kind === 'keepsake' ? (
-                <button className="btn btn-lilac !py-1.5 !px-3 !text-[11px]" onClick={() => { const r = engine.giveGift(it.id); flash(r.msg); if (r.ok) goScene(); }}>Подарить</button>
+                <button className="btn btn-lilac !py-1.5 !px-3 !text-[11px]" onClick={() => { const r = engine.giveGift(it.id); flash(r.msg); if (r.ok) sfx.chime(); else sfx.sad(); }}>Подарить</button>
               ) : (
                 <span className="chip !text-[9.5px] text-cream/40">в гардеробе</span>
               )}

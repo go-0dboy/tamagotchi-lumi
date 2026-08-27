@@ -55,7 +55,10 @@ function Game() {
       if (!engine.state.settings.reminders) return;
       const p = engine.state.pet;
       if (p && !p.sleeping && !p.transcended && !document.hidden) {
-        engine.setBubble(proactiveLine(engine.state));
+        // сначала — «умная» реплика от нейросети (погода, факты, воспоминания),
+        // если её нет — обычная проактивная фраза
+        const line = engine.smartProactive() ?? proactiveLine(engine.state);
+        engine.setBubble(line);
         engine.save();
       }
     }, 40000);
