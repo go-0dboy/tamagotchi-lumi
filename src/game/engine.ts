@@ -365,6 +365,8 @@ class Engine {
 
   /* ---------- уход ---------- */
   setBubble(text: string) { this.state.bubble = { text, at: Date.now() }; }
+  clearBubble() { if (this.state.bubble) { this.state.bubble = null; this.emit(); } }
+  clearFx() { if (this.state.fx) { this.state.fx = null; this.emit(); } }
 
   feed(foodId: string): { ok: boolean; msg: string } {
     const s = this.state; const p = s.pet; if (!p) return { ok: false, msg: '' };
@@ -390,6 +392,7 @@ class Engine {
 
   petStroke() {
     const s = this.state; const p = s.pet; if (!p || p.transcended) return;
+    if (p.sleeping) { this.setBubble('Тс-с… я сплю и вижу сон. Разбудишь — погладишь.'); this.commit(); return; }
     const last = s.counters.lastPetAt ?? 0;
     if (Date.now() - last < 900) return;
     s.counters.lastPetAt = Date.now();

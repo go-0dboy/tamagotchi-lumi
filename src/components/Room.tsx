@@ -7,12 +7,15 @@
 import { useMemo } from 'react';
 import { ROOM_THEMES } from '../game/content';
 import { mulberry32 } from '../game/dna';
+import Icon from './icons';
 
 interface Props {
   themeId: string;
   furniture: string[];
   phase: 'morning' | 'day' | 'evening' | 'night';
   weather: { kind: string; label: string };
+  sleeping?: boolean;
+  cleanliness?: number;
   children?: React.ReactNode;
 }
 
@@ -23,7 +26,7 @@ const SKY: Record<string, string> = {
   night: 'linear-gradient(180deg, #0d1530 0%, #1c2a52 60%, #33406b 100%)',
 };
 
-export default function RoomScene({ themeId, furniture, phase, weather, children }: Props) {
+export default function RoomScene({ themeId, furniture, phase, weather, sleeping = false, cleanliness = 100, children }: Props) {
   const theme = ROOM_THEMES.find(t => t.id === themeId) ?? ROOM_THEMES[0];
   const has = (id: string) => furniture.includes(id);
   const seed = useMemo(() => mulberry32(new Date().getDate() * 97 + new Date().getMonth() * 31), []);
@@ -32,8 +35,12 @@ export default function RoomScene({ themeId, furniture, phase, weather, children
   const stars = useMemo(() => Array.from({ length: 14 }, () => ({ left: seed() * 88 + 6, top: seed() * 70 + 6, delay: seed() * 3, r: 1 + seed() * 1.6 })), [seed]);
   const rainDrops = useMemo(() => Array.from({ length: 16 }, () => ({ left: seed() * 96 + 2, delay: seed() * 1.4, dur: 0.8 + seed() * 0.6 })), [seed]);
   const snow = useMemo(() => Array.from({ length: 18 }, () => ({ left: seed() * 96 + 2, delay: seed() * 4, dur: 2.6 + seed() * 2 })), [seed]);
+  /* пятна грязи на полу — чем ниже чистота, тем заметнее */
+  const grime = useMemo(() => Array.from({ length: 10 }, () => ({ left: seed() * 88 + 6, bottom: seed() * 22 + 4, rx: 10 + seed() * 16, ry: 3.5 + seed() * 4, tilt: seed() * 40 - 20 })), [seed]);
 
   const nightish = phase === 'night' || phase === 'evening';
+  const dirty = cleanliness < 55;
+  const grimy = cleanliness < 32;
 
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ background: `linear-gradient(180deg, ${theme.wall} 0%, ${theme.wallDeep} 62%, ${theme.floor} 62%, ${theme.floorDeep} 100%)` }}>
@@ -102,17 +109,6 @@ export default function RoomScene({ themeId, furniture, phase, weather, children
         </div>
       )}
 
-      {/* кроватка — всегда */}
-      <div className="absolute pointer-events-none" style={{ left: '3.5%', bottom: '8%', width: '21%', minWidth: 92, maxWidth: 170 }}>
-        <svg viewBox="0 0 150 80" className="w-full">
-          <rect x="4" y="26" width="142" height="40" rx="10" fill="#3a2f52" />
-          <rect x="4" y="14" width="142" height="22" rx="10" fill="#4a3d66" />
-          <rect x="10" y="32" width="130" height="30" rx="8" fill="#fff3e2" opacity="0.92" />
-          <path d="M10 44 h130" stroke="#ffaec9" strokeWidth="3" strokeDasharray="2 7" strokeLinecap="round" />
-          <ellipse cx="34" cy="40" rx="16" ry="10" fill="#ffaec9" opacity="0.85" />
-        </svg>
-      </div>
-
       {/* звёздная лампа */}
       {has('furn_starlamp') && (
         <div className="absolute pointer-events-none" style={{ right: '4.5%', bottom: '20%', width: '12%', minWidth: 56, maxWidth: 100 }}>
@@ -173,9 +169,9 @@ export default function RoomScene({ themeId, furniture, phase, weather, children
         </div>
       )}
 
-      {/* музыкальная шкатулка — стоит на кроватке */}
+      {/* музыкальная шкатулка */}
       {has('furn_musicbox') && (
-        <div className="absolute pointer-events-none" style={{ left: '6%', bottom: 'calc(8% + 62px)', width: '8%', minWidth: 40, maxWidth: 60 }}>
+        <div className="absolute pointer-events-none" style={{ left: '5%', bottom: '7.5%', width: '8%', minWidth: 40, maxWidth: 60 }}>
           <svg viewBox="0 0 70 60" className="w-full">
             <rect x="8" y="18" width="54" height="34" rx="6" fill="#c8b6ff" stroke="#a992f0" strokeWidth="2.5" />
             <path d="M8 18 L14 8 H56 L62 18 Z" fill="#a992f0" />
@@ -191,6 +187,20 @@ export default function RoomScene({ themeId, furniture, phase, weather, children
         {[6, 13, 20, 27, 34].map(y => <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="#0c1220" strokeWidth="0.5" />)}
       </svg>
 
+      {/* грязь, если давно не убирали */}
+      {dirty && (
+        <svg className="absolute inset-x-0 bottom-0 w-full pointer-events-none" style={{ height: '34%' }} preserveAspectRatio="none" viewBox="0 0 100 34">
+          {grime.slice(0, grimy ? 10 : 5).map((g, i) => (
+            <ellipse key={i} cx={g.left} cy={34 - g.bottom} rx={g.rx / 4} ry={g.ry / 3}
+              fill="#241a12" opacity={grimy ? 0.5 : 0.3}
+              transform={`rotate(${g.tilt} ${g.left} ${34 - g.bottom})`} />
+          ))}
+          {grimy && [20, 45, 70].map((x, i) => (
+            <path key={`cr${i}`} d={`M${x} ${10 + i * 6} q3 -2 6 0 q2 1.5 5 0`} stroke="#241a12" strokeWidth="1.4" fill="none" strokeLinecap="round" opacity="0.5" />
+          ))}
+        </svg>
+      )}
+
       {/* амбиент: светлячки ночью, пылинки днём */}
       {nightish ? fireflies.map((f, i) => (
         <div key={i} className="absolute rounded-full pointer-events-none" style={{ left: `${f.left}%`, top: `${f.top}%`, width: 5, height: 5, background: '#ffd98e', boxShadow: '0 0 10px 3px rgba(255,217,142,0.5)', animation: `firefly ${f.dur}s ease-in-out infinite ${f.delay}s` }} />
@@ -202,7 +212,38 @@ export default function RoomScene({ themeId, furniture, phase, weather, children
       <div className="absolute inset-0 pointer-events-none transition-opacity duration-1000" style={{ background: 'linear-gradient(180deg, rgba(8,12,28,0.42), rgba(8,12,28,0.18) 55%, rgba(8,12,28,0.45))', opacity: phase === 'night' ? 1 : phase === 'evening' ? 0.55 : phase === 'morning' ? 0.25 : 0.1 }} />
       <div className="absolute inset-0 pointer-events-none room-vignette" />
 
+      {/* сон: приглушённый свет + мягкое свечение + облако снов */}
+      <div className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
+        style={{ background: 'radial-gradient(ellipse at 50% 78%, rgba(10,15,34,0.15) 0%, rgba(8,12,28,0.62) 100%)', opacity: sleeping ? 1 : 0 }} />
+      <div className="absolute pointer-events-none transition-opacity duration-1000"
+        style={{ left: '50%', bottom: '6%', width: '52%', maxWidth: 440, aspectRatio: '2.4', transform: 'translateX(-50%)', background: 'radial-gradient(ellipse at center, rgba(255,217,142,0.14) 0%, transparent 70%)', opacity: sleeping ? 1 : 0 }} />
+      {sleeping && (
+        <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none anim-float" style={{ bottom: '58%', zIndex: 15 }}>
+          <DreamCloud />
+        </div>
+      )}
+
       {children}
+    </div>
+  );
+}
+
+/* облачко, в котором по очереди проявляются образы сна */
+function DreamCloud() {
+  return (
+    <div className="relative w-[120px] h-[64px]">
+      <svg viewBox="0 0 120 64" className="absolute inset-0 w-full h-full drop-shadow-lg">
+        <ellipse cx="34" cy="42" rx="26" ry="17" fill="rgba(255,243,226,0.92)" />
+        <ellipse cx="66" cy="34" rx="30" ry="20" fill="rgba(255,243,226,0.96)" />
+        <ellipse cx="94" cy="44" rx="22" ry="14" fill="rgba(255,243,226,0.9)" />
+        <ellipse cx="20" cy="54" rx="8" ry="5" fill="rgba(255,243,226,0.5)" />
+        <ellipse cx="12" cy="62" rx="5" ry="3.5" fill="rgba(255,243,226,0.35)" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-butter" style={{ paddingBottom: 8 }}>
+        <span className="dream-icon" style={{ animationDelay: '0s' }}><Icon name="star" className="w-5 h-5" /></span>
+        <span className="dream-icon absolute" style={{ animationDelay: '2s' }}><Icon name="moon" className="w-5 h-5" /></span>
+        <span className="dream-icon absolute" style={{ animationDelay: '4s' }}><Icon name="spark" className="w-5 h-5" /></span>
+      </div>
     </div>
   );
 }
