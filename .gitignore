@@ -1,31 +1,10 @@
-# зависимости
 node_modules/
-
-# сборка
 dist/
-dist-ssr/
-
-# локальные переменные и ключи (никогда не коммитим)
 .env
 .env.*
-*.local
-
-# редакторы и ОС
-.vscode/*
-!.vscode/extensions.json
-.idea/
+*.log
 .DS_Store
-Thumbs.db
-
-# логи
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# кэши
-.eslintcache
-*.tsbuildinfo
+.idea/
+.vscode/
 .next/
 build/
-*.log

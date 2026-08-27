@@ -6,20 +6,20 @@ export type Rarity = 'обычный' | 'необычный' | 'редкий' | 
 
 export interface PetDNA {
   seed: number;
-  species: string;          // ключ архетипа
-  body: number;             // 0..3 форма тела
-  ears: string;             // тип ушей
-  tail: string;             // тип хвоста
-  eyeStyle: number;         // размер/форма глаз
+  species: string;
+  body: number;
+  ears: string;
+  tail: string;
+  eyeStyle: number;
   mouth: number;
-  pattern: string;          // узор
+  pattern: string;
   colorPrimary: string;
   colorSecondary: string;
   colorAccent: string;
-  aura: string;             // цвет ауры
+  aura: string;
   rarity: Rarity;
-  idle: string;             // любимая idle-анимация
-  abilityId: string;        // уникальная способность
+  idle: string;
+  abilityId: string;
 }
 
 export interface Personality {
@@ -29,18 +29,13 @@ export interface Personality {
   traits: string[];
 }
 
-export interface Stats {
-  hunger: number;
-  energy: number;
-  mood: number;
-  cleanliness: number;
-}
+export interface Stats { hunger: number; energy: number; mood: number; cleanliness: number; }
 
 export interface Growth {
   xp: number;
   level: number;
   bornAt: number;
-  skills: Record<string, number>; // интеллект, спорт, эмпатия, магия, творчество, любознательность
+  skills: Record<string, number>;
 }
 
 export interface Outfit {
@@ -57,43 +52,18 @@ export interface MemoryItem {
   at: number;
 }
 
-export interface DiaryEntry {
-  id: string;
-  day: number;
-  date: string;
-  text: string;
-  moodWord: string;
-}
-
-export interface DreamItem {
-  id: string;
-  at: number;
-  text: string;
-  gift?: string;
-}
-
+export interface DiaryEntry { id: string; day: number; date: string; text: string; moodWord: string; }
+export interface DreamItem { id: string; at: number; text: string; gift?: string; }
 export interface OfflineEvent { icon: string; text: string; }
 
 export interface QuestState {
-  id: string;
-  metric: string;
-  text: string;
-  target: number;
-  reward: number;
-  progress: number;
-  claimed: boolean;
+  id: string; metric: string; text: string; target: number;
+  reward: number; progress: number; claimed: boolean;
 }
 
 export interface LegacyEntry {
-  id: string;
-  name: string;
-  species: string;
-  rarity: Rarity;
-  days: number;
-  bonus: string;
-  colorPrimary: string;
-  epitaph: string;
-  at: number;
+  id: string; name: string; species: string; rarity: Rarity;
+  days: number; bonus: string; colorPrimary: string; epitaph: string; at: number;
 }
 
 export interface OwnerProfile {
@@ -102,6 +72,8 @@ export interface OwnerProfile {
   facts: string[];
   moods: number[];
   promises: string[];
+  city: string;
+  geo: { lat: number; lon: number } | null;
 }
 
 export interface Pet {
@@ -112,12 +84,13 @@ export interface Pet {
   stats: Stats;
   growth: Growth;
   outfit: Outfit;
-  bond: number;       // привязанность 0..100
-  trust: number;      // доверие 0..100
+  bond: number;
+  trust: number;
   sleeping: boolean;
   transcended: boolean;
-  evolutionTraits: string[];  // визуальные черты от стиля заботы
+  evolutionTraits: string[];
   wordsLearned: string[];
+  knowledge: string[];
 }
 
 export interface ChatMsg { id: string; from: 'pet' | 'owner'; text: string; at: number; }
@@ -140,6 +113,7 @@ export interface GameState {
   questDay: string;
   legacy: LegacyEntry[];
   counters: Record<string, number>;
+  inherit: { color?: string; species?: string } | null;
   pendingWelcome: { awayMs: number; events: OfflineEvent[]; line: string } | null;
   pendingFarewell: LegacyEntry | null;
   focusEndsAt: number | null;
@@ -147,7 +121,7 @@ export interface GameState {
   bubble: { text: string; at: number } | null;
   dayKey: string;
   settings: { sound: boolean; reminders: boolean };
-  freshHatch: boolean; // яйцо только что вылупилось — показать экран знакомства
+  freshHatch: boolean;
+  fx: { kind: 'pet' | 'clean' | 'bath'; at: number } | null;
+  weatherReal: { kind: string; label: string; temp: number; at: number } | null;
 }
-
-export type EngineEvent = 'state';

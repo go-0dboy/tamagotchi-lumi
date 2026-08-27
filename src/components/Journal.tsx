@@ -21,7 +21,7 @@ export default function Journal({ state }: { state: GameState }) {
   const [tab, setTab] = useState('diary');
 
   return (
-    <div className="card p-4 anim-fade-up">
+    <div className="card p-3.5 sm:p-4 anim-fade-up">
       <div className="flex gap-1 mb-3 bg-night-900/50 rounded-2xl p-1 sm:p-1.5">
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
@@ -71,10 +71,17 @@ export default function Journal({ state }: { state: GameState }) {
             <div className="text-[11px] font-black text-sky uppercase tracking-wider mb-2">Профиль хозяина</div>
             <div className="text-[13px] font-bold text-cream/85 space-y-1">
               <p>Имя: <span className="text-butter">{state.owner.name || 'ещё не познакомились — напишите «меня зовут …» в болталке'}</span></p>
+              <p>Город: <span className="text-sky">{state.owner.city || 'не указан — за окном сезонная погода'}</span></p>
               {state.owner.favorites.length > 0 && <p>Любит: <span className="text-mint">{state.owner.favorites.slice(-4).join(', ')}</span></p>}
               {state.owner.promises.length > 0 && <p>Обещания: <span className="text-rose">{state.owner.promises.slice(-3).join('; ')}</span></p>}
             </div>
           </div>
+          {state.pet && state.pet.knowledge.length > 0 && (
+            <div className="card-soft p-3">
+              <div className="text-[11px] font-black text-lilac uppercase tracking-wider mb-1">Знания</div>
+              <p className="text-[12px] font-bold text-cream/70">Изучено тем и фактов: <span className="text-butter">{state.pet.knowledge.length}</span>. Питомец умнеет с каждой викториной.</p>
+            </div>
+          )}
           {state.memories.length === 0 && <p className="text-sm text-cream/40 font-bold text-center py-4">Воспоминания копятся с каждым вашим действием.</p>}
           {[...state.memories].reverse().map(m => (
             <div key={m.id} className="card-soft p-3 flex gap-3 items-start">
@@ -105,7 +112,7 @@ export default function Journal({ state }: { state: GameState }) {
                 <span className="chip !text-[10px]" style={{ color: RARITY_COLOR[l.rarity] }}>{l.rarity}</span>
               </div>
               <p className="text-[12px] font-bold text-cream/70 leading-relaxed">{l.epitaph}</p>
-              <div className="flex gap-2 mt-2">
+              <div className="flex gap-2 mt-2 flex-wrap">
                 <span className="chip !text-[10px] text-mint">{l.species}</span>
                 <span className="chip !text-[10px] text-sky">{l.days} дней вместе</span>
                 <span className="chip !text-[10px] text-lilac">дар: {l.bonus}</span>

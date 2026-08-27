@@ -1,31 +1,62 @@
 /* ============================================================
- * GameEngine — сердце «Люмоса».
- * Класс на чистом ES6+: состояние, сохранение в localStorage,
- * офлайн-симуляция жизни (TimeEngine), уход, рост, квесты,
- * сны (DreamEngine), дневник (DiaryEngine), память (MemoryCore),
- * наследие. Никакого сервера — только браузер игрока.
+ * GameEngine — сердце «Люмоса». Чистый ES6-синглтон вне React:
+ * состояние, тики, офлайн-симуляция, уход, прогулки, учёба,
+ * квесты, память, сны, дневник, наследие, реальная погода.
  * ============================================================ */
-import type { GameState, Pet, LegacyEntry, OfflineEvent, QuestState } from './types';
-import { generateDNA, generatePersonality, mulberry32, uid, speciesOf } from './dna';
-import { FOODS, SHOP, KEEPSAKES, QUEST_POOL, stageForAge, SKILLS, TRAIT_THRESHOLD, PET_WORDS } from './content';
-import { makeDreamText, dreamGiftId, makeDiaryText, welcomeLine, chatBrain, proactiveLine, MOOD_WORDS } from './speech';
+import type { GameState, Pet, MemoryItem, OfflineEvent, LegacyEntry } from './types';
+import { generateDNA, generatePersonality, mulberry32, pick, uid, speciesOf, RARITY_BONUS } from './dna';
+import { FOODS, SHOP, KEEPSAKES, QUEST_POOL, SKILLS, TRAIT_THRESHOLD } from './content';
+import { makeDreamText, dreamGiftId, makeDiaryText, MOOD_WORDS, OFFLINE_EVENTS, chatBrain, welcomeLine, WORDS } from './speech';
 import { sfx, setSoundEnabled } from './sound';
 
-const SAVE_KEY = 'lumos_save_v1';
-const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
-const dayKeyOf = (ts: number) => new Date(ts).toLocaleDateString('ru-RU');
-const HOUR = 3600000, DAY = 86400000;
+const KEY = 'lumos.save.v1';
+const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
+const dayKeyOf = (t: number) => new Date(t).toISOString().slice(0, 10);
+const hourMs = 3600000;
 
-/* ---------- начальное состояние ---------- */
-export function freshState(): GameState {
+export function timePhase(): 'morning' | 'day' | 'evening' | 'night' {
+  const h = new Date().getHours();
+  if (h >= 5 && h <= 10) return 'morning';
+  if (h >= 11 && h <= 16) return 'day';
+  if (h >= 17 && h <= 20) return 'evening';
+  return 'night';
+}
+
+/* сезонная погода-заглушка, пока нет города игрока */
+export function getWeather(): { kind: string; label: string } {
+  const m = new Date().getMonth() + 1;
+  const r = Math.random() * 100;
+  if (m === 12 || m <= 2) {
+    if (r < 40) return { kind: 'snow', label: 'Снег' };
+    if (r < 60) return { kind: 'clouds', label: 'Облачно' };
+    return { kind: 'clear', label: 'Ясно' };
+  }
+  if (m >= 3 && m <= 5) {
+    if (r < 30) return { kind: 'rain', label: 'Дождь' };
+    if (r < 50) return { kind: 'clouds', label: 'Облачно' };
+    if (r < 62) return { kind: 'wind', label: 'Ветер' };
+    return { kind: 'clear', label: 'Ясно' };
+  }
+  if (m >= 6 && m <= 8) {
+    if (r < 20) return { kind: 'rain', label: 'Дождь' };
+    if (r < 32) return { kind: 'clouds', label: 'Облачно' };
+    return { kind: 'clear', label: 'Ясно' };
+  }
+  if (r < 35) return { kind: 'rain', label: 'Дождь' };
+  if (r < 55) return { kind: 'wind', label: 'Ветер' };
+  if (r < 70) return { kind: 'clouds', label: 'Облачно' };
+  return { kind: 'clear', label: 'Ясно' };
+}
+
+function defaultState(): GameState {
   return {
     version: 1,
     createdAt: Date.now(),
     lastSeen: Date.now(),
     coins: 60,
-    owner: { name: '', favorites: [], facts: [], moods: [], promises: [] },
+    owner: { name: '', favorites: [], facts: [], moods: [], promises: [], city: '', geo: null },
     pet: null,
-    inventory: { berries: 3, honey: 1 },
+    inventory: { berries: 3, honey: 2 },
     roomTheme: 'dusk',
     furniture: ['furn_rug'],
     memories: [],
@@ -33,647 +64,759 @@ export function freshState(): GameState {
     dreams: [],
     chat: [],
     quests: [],
-    questDay: dayKeyOf(Date.now()),
+    questDay: '',
     legacy: [],
     counters: {},
+    inherit: null,
     pendingWelcome: null,
     pendingFarewell: null,
     focusEndsAt: null,
-    focusMinutes: 25,
+    focusMinutes: 0,
     bubble: null,
     dayKey: dayKeyOf(Date.now()),
     settings: { sound: true, reminders: true },
     freshHatch: false,
+    fx: null,
+    weatherReal: null,
   };
 }
 
-function loadState(): GameState {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return freshState();
-    const parsed = JSON.parse(raw);
-    return { ...freshState(), ...parsed, pet: parsed.pet ? { ...freshState().pet, ...parsed.pet } : null };
-  } catch { return freshState(); }
-}
-
-export class GameEngine {
-  state: GameState;
+class Engine {
+  state: GameState = defaultState();
   private listeners = new Set<() => void>();
 
-  constructor() {
-    this.state = loadState();
-    setSoundEnabled(this.state.settings.sound);
-    this.checkDailyRollover(true);
-    this.simulateOffline();
-  }
+  constructor() { this.load(); }
 
-  /* ---------- подписка / сохранение ---------- */
   subscribe(fn: () => void) { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; }
   private emit() { this.listeners.forEach(fn => fn()); }
-  private commit() { this.state.lastSeen = Date.now(); this.emit(); }
   save() {
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ ...this.state, lastSeen: Date.now() })); } catch { /* приватный режим */ }
+    this.state.lastSeen = Date.now();
+    try { localStorage.setItem(KEY, JSON.stringify(this.state)); } catch { /* приватный режим */ }
   }
-  reset() { localStorage.removeItem(SAVE_KEY); this.state = freshState(); this.emit(); }
-  exportSave(): string { return btoa(unescape(encodeURIComponent(JSON.stringify(this.state)))); }
-  importSave(data: string): boolean {
+  private load() {
     try {
-      const parsed = JSON.parse(decodeURIComponent(escape(atob(data.trim()))));
-      if (!parsed || parsed.version !== 1 || !('coins' in parsed)) return false;
-      this.state = { ...freshState(), ...parsed };
-      this.emit(); this.save(); return true;
-    } catch { return false; }
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as GameState;
+      if (!parsed || parsed.version !== 1 || typeof parsed !== 'object') return;
+      // строгая валидация: повреждённый или слишком старый сейв отбрасываем,
+      // чтобы игра всегда запускалась
+      if (!this.isValid(parsed)) { localStorage.removeItem(KEY); return; }
+      this.state = { ...defaultState(), ...parsed };
+      const s = this.state;
+      const d = defaultState();
+      const fill = <T extends object>(def: T, v: Partial<T> | null | undefined): T => ({ ...def, ...(v ?? {}) });
+      s.owner = fill(d.owner, s.owner);
+      s.settings = fill(d.settings, s.settings);
+      if (s.pet) {
+        s.pet.stats = fill({ hunger: 70, energy: 85, mood: 78, cleanliness: 90 }, s.pet.stats);
+        s.pet.growth = fill({ xp: 0, level: 1, bornAt: Date.now(), skills: {} as Record<string, number> }, s.pet.growth);
+        s.pet.outfit = fill<Pet['outfit']>({ hat: null, scarf: null, glasses: null, wings: null }, s.pet.outfit);
+        s.pet.personality = fill<Pet['personality']>({ temperament: 'любопытный', likes: [], dislikes: [], traits: ['любопытный'] }, s.pet.personality);
+        s.pet.knowledge = Array.isArray(s.pet.knowledge) ? s.pet.knowledge : [];
+        s.pet.wordsLearned = Array.isArray(s.pet.wordsLearned) ? s.pet.wordsLearned : [];
+        s.pet.evolutionTraits = Array.isArray(s.pet.evolutionTraits) ? s.pet.evolutionTraits : [];
+      }
+      s.inventory = (s.inventory && typeof s.inventory === 'object') ? s.inventory : {};
+      s.furniture = Array.isArray(s.furniture) ? s.furniture : ['furn_rug'];
+      s.counters = (s.counters && typeof s.counters === 'object') ? s.counters : {};
+      s.fx = null;
+    } catch {
+      try { localStorage.removeItem(KEY); } catch { /* noop */ }
+    }
   }
 
-  /* ---------- хелперы ---------- */
-  private has(ability: string) { return this.state.pet?.dna.abilityId === ability; }
-  setBubble(text: string) { this.state.bubble = { text, at: Date.now() }; this.commit(); }
-  private addMemory(kind: 'факт' | 'эмоция' | 'момент' | 'обещание' | 'подарок' | 'шутка', text: string) {
-    this.state.memories.push({ id: uid(), kind, text, at: Date.now() });
-    if (this.state.memories.length > 60) this.state.memories.shift();
-  }
-  private bumpCounter(metric: string, n = 1) {
-    this.state.counters[metric] = (this.state.counters[metric] ?? 0) + n;
-    this.state.quests.forEach(q => {
-      if (q.metric === metric && !q.claimed) q.progress = Math.min(q.target, q.progress + n);
-    });
-  }
-  private addXp(n: number) {
-    const p = this.state.pet; if (!p) return;
-    if (this.has('nebula_mind')) n = Math.round(n * 1.3);
-    p.growth.xp += n;
-    let leveled = false;
-    while (p.growth.xp >= 80 + p.growth.level * 40) {
-      p.growth.xp -= 80 + p.growth.level * 40;
-      p.growth.level++; leveled = true;
-      this.state.coins += 25;
-    }
-    if (leveled) { sfx.levelup(); this.setBubble(`Уровень ${p.growth.level}! Я становлюсь мудрее и чуть-чуть больше.`); }
-  }
-  private growSkill(key: string, n: number) {
-    const p = this.state.pet; if (!p) return;
-    p.growth.skills[key] = clamp((p.growth.skills[key] ?? 0) + n, 0, 100);
-    this.recalcTraits();
-  }
-  private recalcTraits() {
-    const p = this.state.pet; if (!p) return;
-    const traits = SKILLS.filter(s => (p.growth.skills[s.key] ?? 0) >= TRAIT_THRESHOLD).map(s => s.trait);
-    if (p.bond >= 80 && !traits.includes('сияющая связь')) traits.push('сияющая связь');
-    p.evolutionTraits = traits;
-  }
-
-  /* ---------- рождение / яйцо ---------- */
-  hatchEgg(inherit?: { colorPrimary?: string; speciesKey?: string } | null): Pet {
-    const seed = Math.floor(Math.random() * 2 ** 31);
-    const rng = mulberry32(seed);
-    const dna = generateDNA(seed, inherit);
-    const name = speciesOf(dna.species).syllA[0]; // предложение имени уточнит игрок
-    const pet: Pet = {
-      id: uid(),
-      name: name + speciesOf(dna.species).syllB[0],
-      dna,
-      personality: generatePersonality(rng, dna),
-      stats: { hunger: 80, energy: 90, mood: 85, cleanliness: 100 },
-      growth: { xp: 0, level: 1, bornAt: Date.now(), skills: { 'интеллект': 5, 'спорт': 5, 'эмпатия': 5, 'магия': 5, 'творчество': 5, 'любознательность': 5 } },
-      outfit: { hat: null, scarf: null, glasses: null, wings: null },
-      bond: 20, trust: 55,
-      sleeping: false, transcended: false,
-      evolutionTraits: [],
-      wordsLearned: [],
-    };
-    // бонусы наследия
-    if (this.state.legacy.length) {
-      const last = this.state.legacy[this.state.legacy.length - 1];
-      const skillMap: Record<string, string> = { 'спокойствие': 'эмпатия', 'любопытство': 'любознательность', 'мудрость': 'интеллект', 'отвага': 'спорт', 'вдохновение': 'творчество' };
-      const sk = skillMap[last.bonus] ?? 'эмпатия';
-      pet.growth.skills[sk] += 12;
-      pet.trust += 5;
-    }
-    this.state.pet = pet;
-    this.state.freshHatch = true;
-    this.recalcTraits();
-    this.addMemory('момент', `${pet.name} появился на свет! Редкость: ${dna.rarity}.`);
-    this.pushDiary(`${pet.name} вылупился и первым делом посмотрел на меня. Кажется, это начало большой дружбы.`, 'волшебный');
-    sfx.hatch();
-    this.commit();
-    return pet;
-  }
-  renamePet(name: string) {
-    if (this.state.pet && name.trim()) { this.state.pet.name = name.trim().slice(0, 16); this.commit(); }
-  }
-  /* игрок подтвердил имя на экране знакомства */
-  completeReveal() {
-    const p = this.state.pet;
-    this.state.freshHatch = false;
+  private isValid(s: GameState): boolean {
+    if (!Array.isArray(s.memories) || !Array.isArray(s.diary) || !Array.isArray(s.dreams) || !Array.isArray(s.quests)) return false;
+    if (s.owner && typeof s.owner !== 'object') return false;
+    const p = s.pet as Pet | null;
     if (p) {
-      const greet: Record<string, string> = {
-        'робкий': 'П-привет… можно я буду сидеть поближе? Так смелее.',
-        'озорной': 'Ну всё, теперь тут будет весело! Я уже придумал три шалости.',
-        'мечтательный': 'Привет! Мне снилось, что мы встретимся. Сон не соврал.',
-        'смелый': 'Привет! Пошли исследовать? Хоть прямо сейчас. Ну… после перекуса.',
-        'нежный': 'Привет… у тебя тёплые руки. Я это сразу почувствовал.',
-      };
-      this.setBubble(greet[p.personality.temperament] ?? 'Привет! Я так ждал, что ты придёшь. Расскажешь мне о себе?');
+      if (!p.dna || typeof p.dna !== 'object' || typeof p.dna.species !== 'string') return false;
+      if (!p.stats || typeof p.stats !== 'object') return false;
+      if (!p.growth || typeof p.growth !== 'object' || typeof p.growth.bornAt !== 'number') return false;
+      if (!p.personality || !Array.isArray(p.personality.likes)) return false;
+    }
+    return true;
+  }
+  private commit() { this.save(); this.emit(); }
+
+  /* ---------- жизненный цикл ---------- */
+  start() {
+    const now = Date.now();
+    if (this.state.pet && !this.state.pet.transcended && now - this.state.lastSeen > 10 * 60000) {
+      this.simulateOffline(now - this.state.lastSeen);
+    }
+    this.state.lastSeen = now;
+    this.ensureQuests();
+    this.save();
+    this.emit();
+  }
+
+  tick() {
+    const s = this.state;
+    const p = s.pet;
+    if (!p || p.transcended) { this.checkDayChange(); return; }
+    const phase = timePhase();
+    const night = phase === 'night';
+
+    if (p.sleeping) {
+      const fast = this.has('deep_sleep') || this.has('cozy_den') || this.has('ember_heart');
+      p.stats.energy = clamp(p.stats.energy + (fast ? 1.1 : 0.7), 0, 100);
+      p.stats.hunger = clamp(p.stats.hunger - 0.006, 12, 100);
+      // просыпается сам: выспался или настало утро
+      const morning = phase === 'morning';
+      if (p.stats.energy >= 100 || (morning && p.stats.energy > 75)) {
+        p.sleeping = false;
+        p.stats.mood = clamp(p.stats.mood + 6, 0, 100);
+        this.setBubble(morning ? 'Доброе утро! Мне снилось что-то очень круглое и тёплое.' : 'Выспался! Я снова полон искр.');
+      }
+    } else {
+      const moss = (this.has('calm_moss') || this.has('night_prowl')) ? 0.55 : 1;
+      p.stats.hunger = clamp(p.stats.hunger - 0.011, 12, 100);
+      p.stats.energy = clamp(p.stats.energy - 0.006 * moss, 8, 100);
+      const dust = this.has('gravity_nap') ? 0.6 : 1;
+      p.stats.cleanliness = clamp(p.stats.cleanliness - 0.005 * dust, 10, 100);
+      let target = 38 + p.bond * 0.35;
+      if (night && this.has('starlight')) target = Math.max(target, 60);
+      let dm = (target - p.stats.mood) * 0.004;
+      if (p.stats.hunger < 25) dm -= 0.05;
+      if (p.stats.energy < 20) dm -= 0.03;
+      if (this.has('purr_heal') && p.stats.mood < 70) dm += 0.03;
+      p.stats.mood = clamp(p.stats.mood + dm, 10, 100);
+      // засыпает сам: очень устал или пришла ночь
+      if (p.stats.energy <= 9 && Math.random() < 0.05) {
+        p.sleeping = true;
+        this.setBubble('Глазки закрылись сами… z-z-z…');
+      } else if (night && p.stats.energy < 45 && Math.random() < 0.12) {
+        p.sleeping = true;
+        this.setBubble('Ночь… звёзды уже спят. И я, пожалуй, тоже…');
+      }
+    }
+
+    // фокус-таймер
+    if (s.focusEndsAt && Date.now() >= s.focusEndsAt) {
+      s.focusEndsAt = null;
+      const mins = s.focusMinutes || 15;
+      const reward = 10 + mins;
+      s.coins += reward;
+      this.growSkill('интеллект', 1);
+      this.bumpCounter('focus');
+      this.addMemory('момент', `Вместе сосредоточенно занимались ${mins} минут`);
+      this.setBubble(`Целых ${mins} минут фокуса! Я горжусь нами. +${reward} искр.`);
+      sfx.levelup();
+    }
+
+    this.checkDayChange();
+  }
+
+  private checkDayChange() {
+    const today = dayKeyOf(Date.now());
+    if (this.state.dayKey === today) return;
+    const s = this.state;
+    const p = s.pet;
+    if (p) {
+      const w = getWeather();
+      const fed = s.counters.feed ?? 0;
+      const played = s.counters.play ?? 0;
+      s.diary.unshift({
+        id: uid(),
+        day: Math.max(1, Math.floor((Date.now() - p.growth.bornAt) / 86400000)),
+        date: new Date(Date.now() - 86400000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }),
+        text: makeDiaryText({ ownerName: s.owner.name, fedTimes: fed, playedTimes: played, avgMood: p.stats.mood, weather: w.label.toLowerCase() }),
+        moodWord: pick(Math.random, MOOD_WORDS),
+      });
+      s.diary = s.diary.slice(0, 40);
+      const ageDays = (Date.now() - p.growth.bornAt) / 86400000;
+      if (!p.transcended && ageDays >= 55) this.transcend();
+    }
+    s.dayKey = today;
+    s.counters = {};
+    this.ensureQuests();
+    this.save();
+    this.emit();
+  }
+
+  /* ---------- офлайн-симуляция ---------- */
+  private simulateOffline(elapsedMs: number) {
+    const s = this.state;
+    const p = s.pet!;
+    const hours = elapsedMs / hourMs;
+    const events: OfflineEvent[] = [];
+
+    const nights = Math.min(6, Math.floor(hours / 6));
+    for (let i = 0; i < nights; i++) {
+      p.stats.energy = clamp(p.stats.energy + 22, 0, 100);
+      const giftRate = this.has('root_song') || this.has('wish_dust') ? 0.55 : 0.3;
+      const gift = Math.random() < giftRate ? (dreamGiftId() ?? 'keep_stone') : undefined;
+      const text = makeDreamText();
+      s.dreams.unshift({ id: uid(), at: Date.now() - (nights - i) * 8 * hourMs, text, gift });
+      if (gift) {
+        s.inventory[gift] = (s.inventory[gift] ?? 0) + 1;
+        this.growSkill('магия', 1);
+      }
+    }
+    s.dreams = s.dreams.slice(0, 20);
+
+    p.stats.hunger = clamp(p.stats.hunger - hours * 4, 12, 100);
+    p.stats.cleanliness = clamp(p.stats.cleanliness - hours * 2, 10, 100);
+    if (!p.sleeping) p.stats.energy = clamp(p.stats.energy - hours * 1.5, 15, 100);
+    const target = 38 + p.bond * 0.35;
+    p.stats.mood = clamp(p.stats.mood + (target - p.stats.mood) * Math.min(1, hours * 0.08), 15, 100);
+
+    if (hours > 12) {
+      p.trust = clamp(p.trust - Math.min(20, hours * 0.4), 5, 100);
+      p.bond = clamp(p.bond - hours * 0.1, 5, 100);
+      events.push({ icon: 'heart', text: OFFLINE_EVENTS.missed });
+    }
+
+    const roll = Math.random();
+    if (hours > 2 && p.stats.cleanliness < 55 && roll < 0.4) {
+      p.stats.cleanliness = clamp(p.stats.cleanliness + 30, 0, 100);
+      events.push({ icon: 'broom', text: OFFLINE_EVENTS.cleaned });
+    } else if (hours > 3 && roll < 0.65) {
+      s.inventory['keep_drawing'] = (s.inventory['keep_drawing'] ?? 0) + 1;
+      events.push({ icon: 'drawing', text: OFFLINE_EVENTS.drew });
+    }
+    if (hours > 6 && Math.random() < 0.6) {
+      const pool = WORDS.filter(w => !p.wordsLearned.includes(w));
+      const word = pool.length ? pick(Math.random, pool) : pick(Math.random, WORDS);
+      if (!p.wordsLearned.includes(word)) p.wordsLearned.push(word);
+      events.push({ icon: 'book', text: `${OFFLINE_EVENTS.word}: «${word}»` });
+    }
+    if (hours > 4 && s.furniture.includes('furn_plant') && Math.random() < 0.5) {
+      events.push({ icon: 'plant', text: OFFLINE_EVENTS.plants });
+    }
+    if (hours > 8 && Math.random() < 0.45) {
+      const found = 5 + Math.floor(Math.random() * 10);
+      s.coins += found;
+      events.push({ icon: 'spark', text: `${OFFLINE_EVENTS.sparks} (+${found})` });
+    }
+    if (hours > 10 && Math.random() < 0.3) events.push({ icon: 'musicbox', text: OFFLINE_EVENTS.song });
+
+    s.pendingWelcome = {
+      awayMs: elapsedMs,
+      events: events.slice(0, 4),
+      line: welcomeLine(elapsedMs, p.trust, p.name),
+    };
+  }
+
+  dismissWelcome() {
+    const p = this.state.pet;
+    this.state.pendingWelcome = null;
+    if (p && p.trust < 45) this.setBubble('Ты вернулся. Я… рад. Честно. Дай мне минутку, ладно?');
+    this.commit();
+  }
+  hugOnReturn() {
+    const p = this.state.pet;
+    this.state.pendingWelcome = null;
+    if (p) {
+      p.trust = clamp(p.trust + 8, 0, 100);
+      p.bond = clamp(p.bond + 4, 0, 100);
+      p.stats.mood = clamp(p.stats.mood + 10, 0, 100);
+      this.addMemory('момент', 'Встретились после разлуки — обнимашки на десять баллов');
+      this.setBubble('Вот теперь всё правильно. Ты здесь, я здесь — мир на месте.');
+      sfx.chime();
     }
     this.commit();
   }
 
-  /* ============================================================
-   * УХОД И ВЗАИМОДЕЙСТВИЯ
-   * ============================================================ */
-  feed(foodId: string): { ok: boolean; msg: string } {
-    const p = this.state.pet; if (!p || p.transcended) return { ok: false, msg: '' };
-    const food = FOODS.find(f => f.id === foodId); if (!food) return { ok: false, msg: '' };
-    const owned = this.state.inventory[foodId] ?? 0;
-    if (owned <= 0) {
-      if (this.state.coins < food.price) return { ok: false, msg: 'Не хватает искр. Сыграй в мини-игру!' };
-      this.state.coins -= food.price;
-    } else this.state.inventory[foodId] = owned - 1;
+  /* ---------- способности ---------- */
+  has(abilityId: string) { return this.state.pet?.dna.abilityId === abilityId; }
 
+  addMemory(kind: MemoryItem['kind'], text: string) {
+    const s = this.state;
+    s.memories.unshift({ id: uid(), kind, text, at: Date.now() });
+    s.memories = s.memories.slice(0, 60);
+  }
+
+  growSkill(key: string, amount: number) {
+    const p = this.state.pet; if (!p) return;
+    const before = p.growth.skills[key] ?? 0;
+    const after = before + amount;
+    p.growth.skills[key] = after;
+    const def = SKILLS.find(sk => sk.key === key);
+    if (def && before < TRAIT_THRESHOLD && after >= TRAIT_THRESHOLD && !p.evolutionTraits.includes(def.trait)) {
+      p.evolutionTraits.push(def.trait);
+      this.setBubble(`Я чувствую… во мне растёт ${key}! Посмотри, что изменилось!`);
+      this.addMemory('момент', `У меня появилась черта: ${def.trait}`);
+      sfx.sparkle();
+    }
+  }
+  addXp(n: number) {
+    const p = this.state.pet; if (!p) return;
+    let amount = n;
+    if (this.has('nebula_mind')) amount *= 1.25;
+    p.growth.xp += amount;
+    let need = 80 + p.growth.level * 40;
+    while (p.growth.xp >= need) {
+      p.growth.xp -= need;
+      p.growth.level++;
+      this.state.coins += 15;
+      this.setBubble(`Уровень ${p.growth.level}! Я расту, как тесто на дрожжах из звёздной пыли.`);
+      sfx.levelup();
+      need = 80 + p.growth.level * 40;
+    }
+  }
+  private bumpCounter(metric: string) {
+    const s = this.state;
+    s.counters[metric] = (s.counters[metric] ?? 0) + 1;
+    s.quests.forEach(q => { if (q.metric === metric && !q.claimed) q.progress = Math.min(q.target, q.progress + 1); });
+  }
+
+  /* ---------- уход ---------- */
+  setBubble(text: string) { this.state.bubble = { text, at: Date.now() }; }
+
+  feed(foodId: string): { ok: boolean; msg: string } {
+    const s = this.state; const p = s.pet; if (!p) return { ok: false, msg: '' };
+    if (p.sleeping) return { ok: false, msg: 'Тс-с… он спит. Еда подождёт.' };
+    const food = FOODS.find(f => f.id === foodId); if (!food) return { ok: false, msg: 'Нет такой еды.' };
+    const owned = s.inventory[foodId] ?? 0;
+    if (owned > 0) s.inventory[foodId] = owned - 1;
+    else if (s.coins >= food.price) s.coins -= food.price;
+    else return { ok: false, msg: `Не хватает искр (${food.price}). Сыграйте в игру или сходите на прогулку!` };
     const liked = p.personality.likes.includes(food.tag);
     const disliked = p.personality.dislikes.includes(food.tag);
-    p.stats.hunger = clamp(p.stats.hunger + food.hunger, 0, 100);
-    p.stats.mood = clamp(p.stats.mood + food.mood + (liked ? 5 : 0) - (disliked ? 4 : 0), 0, 100);
-    p.bond = clamp(p.bond + 0.5, 0, 100);
+    p.stats.hunger = clamp(p.stats.hunger + food.hunger * (liked ? 1.5 : 1), 0, 100);
+    p.stats.mood = clamp(p.stats.mood + food.mood + (disliked ? -3 : 0), 0, 100);
     this.bumpCounter('feed');
-    this.addXp(4);
+    this.addXp(2);
     sfx.eat();
-    const msg = liked ? `${p.name} обожает ${food.name.toLowerCase()}! Глаза стали как блюдца.`
-      : disliked ? `${p.name} вежливо доел, но это точно не его любимое блюдо.`
-      : `Ням! ${food.name} исчезло со скоростью светлячка.`;
-    if (p.trust < 60) p.trust = clamp(p.trust + 1, 0, 100); // еда восстанавливает доверие
-    this.setBubble(msg);
+    if (liked) this.setBubble(`Ммм! ${food.name} — моё любимое! Ты знаешь путь к моему сердцу.`);
+    else if (disliked) this.setBubble(`Спасибо… но ${food.name} — не совсем моё. Я съел. Честно.`);
+    else this.setBubble(`Ням! ${food.name}. Вкусно почти до слёз.`);
     this.commit();
-    return { ok: true, msg };
+    return { ok: true, msg: `${p.name} съедает: ${food.name}${liked ? ' — обожает!' : ''}` };
   }
 
-  petStroke(): void {
-    const p = this.state.pet; if (!p || p.transcended || p.sleeping) return;
-    const mult = this.has('jelly_hug') ? 1.8 : 1;
-    p.stats.mood = clamp(p.stats.mood + 2.2 * mult, 0, 100);
-    p.bond = clamp(p.bond + 0.6, 0, 100);
-    if (p.trust < 70) p.trust = clamp(p.trust + 0.4, 0, 100);
+  petStroke() {
+    const s = this.state; const p = s.pet; if (!p || p.transcended) return;
+    const last = s.counters.lastPetAt ?? 0;
+    if (Date.now() - last < 900) return;
+    s.counters.lastPetAt = Date.now();
+    const charm = this.has('fox_charm') ? 1.5 : 1;
+    const jelly = this.has('jelly_hug') ? 2 : 1;
+    p.stats.mood = clamp(p.stats.mood + 2 * charm * jelly, 0, 100);
+    p.bond = clamp(p.bond + 0.6 * jelly, 0, 100);
+    p.trust = clamp(p.trust + 0.4, 0, 100);
+    this.growSkill('эмпатия', 0.5);
     this.bumpCounter('pet');
     this.addXp(1);
+    s.fx = { kind: 'pet', at: Date.now() };
+    if (Math.random() < 0.3) {
+      const lines = ['Мррр… ещё, пожалуйста!', 'Хи-хи, щекотно!', 'Это лучшее место на свете — твоя ладонь.', 'Мур-мур-мур…'];
+      this.setBubble(lines[Math.floor(Math.random() * lines.length)]);
+    }
     sfx.purr();
     this.commit();
   }
 
-  cleanRoom() {
-    const p = this.state.pet; if (!p) return;
-    p.stats.cleanliness = 100;
-    p.stats.mood = clamp(p.stats.mood - 2, 0, 100);
+  cleanRoom(): { ok: boolean; msg: string } {
+    const p = this.state.pet; if (!p) return { ok: false, msg: '' };
+    if (p.stats.cleanliness > 92) { this.setBubble('Тут и так сверкает! Я лично проверял каждый уголок.'); this.commit(); return { ok: false, msg: 'Уже чисто' }; }
+    p.stats.cleanliness = clamp(p.stats.cleanliness + 35, 0, 100);
+    p.stats.mood = clamp(p.stats.mood + 2, 0, 100);
     this.bumpCounter('clean');
     this.addXp(3);
-    sfx.pop();
-    this.setBubble('Чисто! Теперь я сверкаю, как начищенная луна.');
+    this.state.fx = { kind: 'clean', at: Date.now() };
+    this.setBubble('Вжух-вжух! Мётла танцует, пыль разбегается!');
+    sfx.sparkle();
     this.commit();
+    return { ok: true, msg: 'В комнате стало чище' };
+  }
+
+  bathPet(): { ok: boolean; msg: string } {
+    const s = this.state; const p = s.pet; if (!p || p.transcended) return { ok: false, msg: '' };
+    if (p.sleeping) return { ok: false, msg: 'Спит. Купание подождёт до утра.' };
+    const last = s.counters.lastBath ?? 0;
+    if (Date.now() - last < 40000) return { ok: false, msg: 'Он уже чистый-пречистый!' };
+    s.counters.lastBath = Date.now();
+    p.stats.cleanliness = 100;
+    p.stats.mood = clamp(p.stats.mood + 8, 0, 100);
+    p.bond = clamp(p.bond + 1.5, 0, 100);
+    this.bumpCounter('clean');
+    this.addXp(4);
+    s.fx = { kind: 'bath', at: Date.now() };
+    this.setBubble('Буль-буль-буль! Я теперь пахну облаком и немножко ромашкой.');
+    sfx.splash();
+    this.commit();
+    return { ok: true, msg: `${p.name} выкупан и сияет!` };
   }
 
   toggleSleep() {
-    const p = this.state.pet; if (!p) return;
+    const p = this.state.pet; if (!p || p.transcended) return;
     p.sleeping = !p.sleeping;
-    this.setBubble(p.sleeping ? 'Спокойной ночи… я пошёл ловить сны.' : 'Доброе утро! Я видел сон про звёздный пляж.');
-    if (!p.sleeping && this.has('ember_heart')) p.stats.energy = clamp(p.stats.energy + 8, 0, 100);
-    sfx.bubble();
+    if (p.sleeping) this.setBubble('Спокойной ночи… оставь лампу гореть, ладно?');
+    else { p.stats.mood = clamp(p.stats.mood + 2, 0, 100); this.setBubble('Потягууушки! Я готов к подвигам. Ну, к маленьким.'); }
+    sfx.pop();
     this.commit();
   }
 
-  studyTogether() {
-    const p = this.state.pet; if (!p || p.sleeping) return { ok: false, msg: 'Я сплю… давай позже?' };
-    if (p.stats.energy < 10) return { ok: false, msg: 'Я слишком сонный для науки…' };
-    p.stats.energy = clamp(p.stats.energy - 6, 0, 100);
-    p.stats.mood = clamp(p.stats.mood + 2, 0, 100);
-    p.bond = clamp(p.bond + 1.2, 0, 100);
-    this.growSkill('интеллект', 2);
-    this.growSkill('магия', this.has('nebula_mind') ? 2 : 1);
+  studyTogether(): { ok: boolean; msg: string } {
+    const s = this.state; const p = s.pet; if (!p) return { ok: false, msg: '' };
+    if (p.sleeping) return { ok: false, msg: 'Спит. Учёба подождёт.' };
+    const last = s.counters.lastStudy ?? 0;
+    if (Date.now() - last < 45000) return { ok: false, msg: 'Он ещё переваривает прошлое слово.' };
+    s.counters.lastStudy = Date.now();
+    let pool = WORDS.filter(w => !p.wordsLearned.includes(w));
+    let fresh = true;
+    if (pool.length === 0) { p.wordsLearned = []; pool = [...WORDS]; fresh = false; }
+    const word = pool[Math.floor(Math.random() * pool.length)];
+    p.wordsLearned.push(word);
+    p.stats.mood = clamp(p.stats.mood + 3, 0, 100);
+    p.stats.energy = clamp(p.stats.energy - 3, 0, 100);
+    this.growSkill('интеллект', this.has('cache_memory') ? 3 : 2);
     this.bumpCounter('study');
-    this.addXp(8);
-    const wordsToLearn = this.has('cache_memory') ? 2 : 1;
-    for (let i = 0; i < wordsToLearn; i++) {
-      const w = PET_WORDS[Math.floor(Math.random() * PET_WORDS.length)];
-      if (!p.wordsLearned.includes(w)) p.wordsLearned.push(w);
-    }
-    sfx.chime();
-    const word = p.wordsLearned[p.wordsLearned.length - 1];
-    this.setBubble(`Мы прочитали целую главу! Теперь я знаю слово «${word}».`);
+    this.addXp(6);
+    sfx.sparkle();
+    this.setBubble(fresh ? `Я выучил слово «${word}»! Повторю три раза: ${word}, ${word}, ${word}!` : `Вспоминаем старое: «${word}». Как же я его люблю!`);
     this.commit();
-    return { ok: true, msg: `+интеллект, новое слово: «${word}»` };
+    return { ok: true, msg: word };
   }
 
-  explore(): { ok: boolean; msg: string } {
-    const p = this.state.pet; if (!p || p.sleeping) return { ok: false, msg: 'Я сплю… давай позже?' };
-    if (p.stats.energy < 12) return { ok: false, msg: 'Лапки не идут. Мне нужен сон или перекус.' };
-    p.stats.energy = clamp(p.stats.energy - 10, 0, 100);
-    p.stats.hunger = clamp(p.stats.hunger - 6, 0, 100);
-    p.stats.cleanliness = clamp(p.stats.cleanliness - 8, 0, 100);
-    this.growSkill('любознательность', 2);
-    this.growSkill('спорт', 1);
+  /* ---------- прогулка с посещением места ---------- */
+  walkVisit(locName: string, story: string): { ok: boolean; msg: string; coins: number; souvenir?: string } {
+    const s = this.state; const p = s.pet; if (!p || p.transcended) return { ok: false, msg: '', coins: 0 };
+    if (p.sleeping) return { ok: false, msg: 'Спит — прогулка подождёт.', coins: 0 };
+    if (p.stats.energy < 12) return { ok: false, msg: 'Слишком устал, чтобы идти. Пусть поспит.', coins: 0 };
+    p.stats.energy = clamp(p.stats.energy - 9, 0, 100);
+    p.stats.mood = clamp(p.stats.mood + 9, 0, 100);
+    p.bond = clamp(p.bond + 2, 0, 100);
+    this.growSkill('любознательность', this.has('trail_sense') ? 2.5 : 1.5);
     this.bumpCounter('walk');
-    this.addXp(7);
-    const rng = Math.random();
-    const luck = this.has('crumb_finder') || this.has('trail_sense') ? 0.2 : 0;
-    let msg: string;
-    if (rng < 0.3 + luck) {
-      const found = 12 + Math.floor(Math.random() * 20);
-      this.state.coins += found; sfx.coin();
-      msg = `Мы нашли тайник светлячков! +${found} искр.`;
-    } else if (rng < 0.5 + luck) {
-      const keep = KEEPSAKES[Math.floor(Math.random() * KEEPSAKES.length)];
-      this.state.inventory[keep.id] = (this.state.inventory[keep.id] ?? 0) + 1;
-      this.addMemory('момент', `На прогулке нашли: ${keep.name.toLowerCase()}`);
-      sfx.sparkle();
-      msg = `Находка дня: ${keep.name.toLowerCase()}!`;
-    } else if (rng < 0.7) {
-      this.growSkill('творчество', 2);
-      msg = 'Мы рисовали карту двора мелками. Вышло кривовато, но честно.';
-    } else {
-      p.bond = clamp(p.bond + 2, 0, 100);
-      msg = 'Мы просто бродили и болтали. Такие прогулки — самые лучшие.';
+    this.addXp(8);
+    const bonus = (this.has('crumb_finder') || this.has('trail_sense')) ? 1.5 : 1;
+    const coins = Math.round((10 + Math.random() * 10) * bonus);
+    s.coins += coins;
+    let souvenir: string | undefined;
+    if (Math.random() < 0.4) {
+      souvenir = pick(Math.random, KEEPSAKES).id;
+      s.inventory[souvenir] = (s.inventory[souvenir] ?? 0) + 1;
     }
-    if (this.has('berry_pocket') && Math.random() < 0.35) {
-      this.state.inventory.berries = (this.state.inventory.berries ?? 0) + 1;
-      msg += ' И ягод из кармана!';
-    }
-    this.setBubble(msg);
+    this.addMemory('момент', story);
+    this.setBubble(story);
+    sfx.chime();
     this.commit();
-    return { ok: true, msg };
+    return { ok: true, msg: story, coins, souvenir };
+  }
+
+  /* ---------- настоящее обучение ---------- */
+  finishStudy(correct: number, total: number, topicIds: string[], subjectLabel: string): { coins: number; xp: number } {
+    const s = this.state; const p = s.pet; if (!p) return { coins: 0, xp: 0 };
+    p.knowledge = [...new Set([...p.knowledge, ...topicIds])].slice(-300);
+    const coins = correct * 5;
+    const xp = correct * 7;
+    s.coins += coins;
+    p.stats.mood = clamp(p.stats.mood + 5, 0, 100);
+    p.stats.energy = clamp(p.stats.energy - 4, 0, 100);
+    p.bond = clamp(p.bond + 1.5, 0, 100);
+    this.growSkill('интеллект', correct >= Math.ceil(total / 2) ? (this.has('cache_memory') ? 3 : 2) : 1);
+    this.bumpCounter('study');
+    this.addXp(xp);
+    this.addMemory('момент', `Учились вместе (${subjectLabel}): ${correct} из ${total} верно`);
+    this.setBubble(correct >= Math.ceil(total / 2)
+      ? `Ого, ${subjectLabel}! Я запомнил ${correct} ответов. Мой мозг теперь скрипит от ума!`
+      : `${subjectLabel} — непросто, но мы старались! Я записал всё на листик.`);
+    sfx.levelup();
+    this.commit();
+    return { coins, xp };
+  }
+
+  rememberFact(title: string, extract: string) {
+    const s = this.state; const p = s.pet; if (!p) return;
+    p.knowledge = [...new Set([...p.knowledge, 'fact:' + title])].slice(-300);
+    this.growSkill('интеллект', 1);
+    this.addXp(5);
+    this.addMemory('факт', `${title}: ${extract.slice(0, 80)}`);
+    this.setBubble(`Ух ты! Теперь я знаю про «${title}». Расскажу всем светлячкам!`);
+    sfx.sparkle();
+    this.commit();
+  }
+
+  /* ---------- реальная погода (Open-Meteo) ---------- */
+  async refreshWeather() {
+    const o = this.state.owner;
+    let lat: number | undefined = o.geo?.lat, lon: number | undefined = o.geo?.lon;
+    const city = o.city;
+    try {
+      if (lat == null && city.trim()) {
+        const g = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city.trim())}&count=1&language=ru&format=json`);
+        const gd = await g.json();
+        const r = gd?.results?.[0];
+        if (r && typeof r.latitude === 'number' && typeof r.longitude === 'number') {
+          lat = r.latitude; lon = r.longitude;
+          o.geo = { lat: r.latitude, lon: r.longitude };
+          if (r.name) o.city = r.name;
+        }
+      }
+      if (lat == null || lon == null) return;
+      const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`);
+      const wd = await w.json();
+      const code = wd?.current?.weather_code as number | undefined;
+      const temp = wd?.current?.temperature_2m as number | undefined;
+      if (typeof code !== 'number') return;
+      this.state.weatherReal = { kind: mapWmo(code), label: wmoLabel(code, temp), temp: typeof temp === 'number' ? Math.round(temp) : 0, at: Date.now() };
+      this.save(); this.emit();
+    } catch { /* нет сети — живём по сезонной погоде */ }
+  }
+
+  setCity(city: string) {
+    this.state.owner.city = city.trim().slice(0, 30);
+    this.state.owner.geo = null;
+    this.state.weatherReal = null;
+    this.commit();
+    void this.refreshWeather();
   }
 
   giveGift(itemId: string): { ok: boolean; msg: string } {
-    const p = this.state.pet; if (!p) return { ok: false, msg: '' };
-    const owned = this.state.inventory[itemId] ?? 0;
-    if (owned <= 0) return { ok: false, msg: 'Такого подарка у нас нет.' };
-    this.state.inventory[itemId] = owned - 1;
-    p.bond = clamp(p.bond + 3.5, 0, 100);
+    const s = this.state; const p = s.pet; if (!p) return { ok: false, msg: '' };
+    const owned = s.inventory[itemId] ?? 0;
+    if (owned <= 0) return { ok: false, msg: 'Подарка нет в рюкзаке.' };
+    s.inventory[itemId] = owned - 1;
+    const def = [...SHOP, ...KEEPSAKES].find(i => i.id === itemId);
+    const name = def?.name ?? 'подарок';
+    p.bond = clamp(p.bond + 3, 0, 100);
+    p.trust = clamp(p.trust + 2, 0, 100);
     p.stats.mood = clamp(p.stats.mood + 6, 0, 100);
-    p.trust = clamp(p.trust + 1.5, 0, 100);
     this.growSkill('эмпатия', 1);
     this.bumpCounter('gift');
-    this.addMemory('подарок', `Подарил(а) мне «${itemId.replace(/keep_|furn_|toy_|gift_/, '')}»`);
-    sfx.sparkle();
-    this.setBubble('Подарок?! Для МЕНЯ?! Я сохраню его в сердце. И в коробочке.');
+    this.addXp(4);
+    this.addMemory('подарок', `Мне подарили: ${name}`);
+    this.setBubble(`${name}?! Это мне? Я положу его в самое надёжное место. В сердце.`);
+    sfx.chime();
     this.commit();
-    return { ok: true, msg: 'Подарок принят с восторгом!' };
+    return { ok: true, msg: `${p.name} в восторге от подарка!` };
   }
 
-  /* ---------- магазин и гардероб ---------- */
+  /* ---------- лавка и гардероб ---------- */
   buy(itemId: string): { ok: boolean; msg: string } {
-    const item = SHOP.find(i => i.id === itemId);
-    if (!item) return { ok: false, msg: '' };
-    if (this.state.coins < item.price) return { ok: false, msg: 'Не хватает искр!' };
-    this.state.coins -= item.price;
+    const s = this.state;
+    const item = SHOP.find(i => i.id === itemId); if (!item) return { ok: false, msg: '' };
+    if (s.coins < item.price) return { ok: false, msg: `Не хватает искр: нужно ${item.price}.` };
+    s.coins -= item.price;
     if (item.kind === 'furniture') {
-      if (!this.state.furniture.includes(item.id)) this.state.furniture.push(item.id);
+      if (!s.furniture.includes(itemId)) s.furniture.push(itemId);
+      this.setBubble(`Ого, ${item.name.toLowerCase()}! Комната стала ещё уютнее.`);
     } else {
-      this.state.inventory[item.id] = (this.state.inventory[item.id] ?? 0) + 1;
+      s.inventory[itemId] = (s.inventory[itemId] ?? 0) + 1;
+      this.setBubble(`${item.name}! Примерим? Ну пожалуйста-пожалуйста!`);
     }
     sfx.coin();
-    this.setBubble(`Ого, «${item.name.toLowerCase()}»! У нас отличный вкус.`);
     this.commit();
     return { ok: true, msg: `Куплено: ${item.name}` };
   }
 
-  equip(itemId: string, slot: 'hat' | 'scarf' | 'glasses' | 'wings') {
+  equip(itemId: string, slot: keyof Pet['outfit']) {
     const p = this.state.pet; if (!p) return;
-    const owned = this.state.inventory[itemId] ?? 0;
-    if (owned <= 0 && p.outfit[slot] !== itemId) return;
     p.outfit[slot] = p.outfit[slot] === itemId ? null : itemId;
-    sfx.pop();
+    if (p.outfit[slot]) this.setBubble('Ну как? Я в этом великолепен. Скромно, но великолепен.');
     this.commit();
   }
 
-  setRoomTheme(id: string) { this.state.roomTheme = id; sfx.tap(); this.commit(); }
+  setRoomTheme(themeId: string) { this.state.roomTheme = themeId; this.commit(); }
 
   /* ---------- квесты ---------- */
-  claimQuest(id: string) {
-    const q = this.state.quests.find(x => x.id === id);
+  private ensureQuests() {
+    const s = this.state;
+    const today = dayKeyOf(Date.now());
+    if (s.questDay === today && s.quests.length > 0) return;
+    const rng = mulberry32(parseInt(today.replace(/-/g, ''), 10) % 2147483647);
+    const pool = [...QUEST_POOL];
+    const chosen = [];
+    for (let i = 0; i < 4 && pool.length; i++) chosen.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+    s.quests = chosen.map(q => ({ id: q.id, metric: q.metric, text: q.text, target: q.target, reward: q.reward, progress: 0, claimed: false }));
+    s.questDay = today;
+  }
+  claimQuest(questId: string) {
+    const s = this.state;
+    const q = s.quests.find(x => x.id === questId);
     if (!q || q.claimed || q.progress < q.target) return;
     q.claimed = true;
-    this.state.coins += q.reward;
-    const p = this.state.pet; if (p) { p.bond = clamp(p.bond + 1, 0, 100); this.addXp(6); }
+    const reward = this.has('spark_burp') ? Math.round(q.reward * 1.2) : q.reward;
+    s.coins += reward;
+    this.setBubble(`Ритуал выполнен! +${reward} искр. Мы с тобой — отличная команда.`);
     sfx.coin();
     this.commit();
   }
-  private rollQuests() {
-    const rng = mulberry32(Math.floor(Date.now() / DAY));
-    const pool = [...QUEST_POOL];
-    const chosen: QuestState[] = [];
-    for (let i = 0; i < 3 && pool.length; i++) {
-      const idx = Math.floor(rng() * pool.length);
-      const def = pool.splice(idx, 1)[0];
-      chosen.push({ ...def, progress: 0, claimed: false });
-    }
-    this.state.quests = chosen;
-    this.state.questDay = dayKeyOf(Date.now());
-    this.state.counters = {};
-  }
 
   /* ---------- мини-игры / фокус ---------- */
-  finishMinigame(kind: 'memory' | 'firefly', score: number): number {
+  finishMinigame(kind: 'memory' | 'firefly' | 'echo' | 'hangman' | 'puzzle' | 'sudoku', score: number): number {
     const p = this.state.pet; if (!p) return 0;
     const lucky = this.has('pixel_luck') ? 1.2 : 1;
     const reward = Math.max(8, Math.round(score * lucky));
+    const skillMap: Record<string, string> = { memory: 'интеллект', firefly: 'спорт', echo: 'творчество', hangman: 'интеллект', puzzle: 'интеллект', sudoku: 'интеллект' };
+    const nameMap: Record<string, string> = {
+      memory: 'в «Звёздную память»', firefly: 'в ловлю светлячков', echo: 'в «Эхо-мелодию»',
+      hangman: 'в виселицу', puzzle: 'в звёздные пятнашки', sudoku: 'в судоку',
+    };
     this.state.coins += reward;
     p.stats.mood = clamp(p.stats.mood + 6, 0, 100);
     p.stats.energy = clamp(p.stats.energy - 5, 0, 100);
     p.bond = clamp(p.bond + 2, 0, 100);
-    this.growSkill(kind === 'memory' ? 'интеллект' : 'спорт', 2);
+    this.growSkill(skillMap[kind] ?? 'интеллект', 2);
     this.bumpCounter('play');
     this.addXp(10);
-    this.addMemory('момент', kind === 'memory' ? `Сыграли в «Звёздную память», счёт ${score}` : `Ловили светлячков, поймали на ${score} искр`);
+    this.addMemory('момент', `Сыграли ${nameMap[kind] ?? ''}, счёт ${score}`);
     sfx.coin();
-    this.setBubble(`Это было здорово! Ещё разок? Ещё разочек?`);
+    this.setBubble('Это было здорово! Ещё разок? Ещё разочек?');
     this.commit();
     return reward;
   }
 
   startFocus(minutes: number) {
-    this.state.focusMinutes = minutes;
-    this.state.focusEndsAt = Date.now() + minutes * 60000;
-    this.setBubble(`Тс-с… ${minutes} минут тишины. Я буду учиться рядом.`);
-    sfx.bubble();
-    this.commit();
-  }
-  private checkFocus() {
-    if (this.state.focusEndsAt && Date.now() >= this.state.focusEndsAt) {
-      this.state.focusEndsAt = null;
-      const p = this.state.pet;
-      if (p) {
-        this.state.coins += 30; p.bond = clamp(p.bond + 2, 0, 100);
-        this.growSkill('интеллект', 3);
-        this.bumpCounter('focus');
-        this.addXp(15);
-        this.pushDiary(`Мы ${this.state.focusMinutes} минут занимались в тишине. Я горжусь нами обоими.`, 'гордый');
-        sfx.levelup();
-        this.setBubble('Фокус-сессия завершена! Мы — команда мечты. +30 искр!');
-      }
-      this.commit();
-    }
-  }
-
-  /* ---------- чат / память ---------- */
-  sendChat(text: string): string[] {
-    const p = this.state.pet; if (!p) return [];
-    this.state.chat.push({ id: uid(), from: 'owner', text, at: Date.now() });
-    const res = chatBrain(text, this.state);
-    if (res.ownerName) this.state.owner.name = res.ownerName;
-    if (res.favorite && !this.state.owner.favorites.includes(res.favorite)) this.state.owner.favorites.push(res.favorite);
-    if (res.save) {
-      if (res.save.kind === 'обещание') this.state.owner.promises.push(res.save.text);
-      else if (res.save.kind === 'факт') this.state.owner.facts.push(res.save.text);
-      this.addMemory(res.save.kind, res.save.text);
-    }
-    if (res.moodDelta) p.stats.mood = clamp(p.stats.mood + res.moodDelta, 0, 100);
-    p.bond = clamp(p.bond + 0.4, 0, 100);
-    this.bumpCounter('talk');
-    res.lines.forEach(l => this.state.chat.push({ id: uid(), from: 'pet', text: l, at: Date.now() }));
-    if (this.state.chat.length > 80) this.state.chat.splice(0, this.state.chat.length - 80);
-    sfx.bubble();
-    this.commit();
-    return res.lines;
-  }
-
-  /* ============================================================
-   * ВРЕМЯ: офлайн-симуляция, тики, смена дня
-   * ============================================================ */
-  private simulateOffline() {
-    const s = this.state; const p = s.pet;
-    const now = Date.now();
-    const away = now - s.lastSeen;
-    if (!p || p.transcended || away < 90000) { s.lastSeen = now; return; }
-
-    const h = Math.min(away / HOUR, 336);
-    const nights = Math.max(1, Math.floor(away / (20 * HOUR)));
-    const events: OfflineEvent[] = [];
-
-    // сон и сны за каждую «ночь»
-    const dreamCount = Math.min(nights, 2);
-    for (let i = 0; i < dreamCount; i++) {
-      const text = makeDreamText();
-      const gift = dreamGiftId() ?? (this.has('root_song') || this.has('wish_dust') ? 'keep_feather' : undefined);
-      s.dreams.unshift({ id: uid(), at: now - Math.floor(away / 2), text, gift });
-      events.push({ icon: 'moon', text: `${p.name} видел сон: «${text}»` });
-      if (gift) {
-        s.inventory[gift] = (s.inventory[gift] ?? 0) + 1;
-        events.push({ icon: 'gift', text: `Из сна ${p.name} принёс подарок — загляни в рюкзачок!` });
-      }
-    }
-    if (s.dreams.length > 20) s.dreams.length = 20;
-
-    // мягкий распад характеристик (питомец НЕ умирает в офлайне)
-    p.stats.hunger = clamp(p.stats.hunger - 4 * h, 12, 100);
-    p.stats.cleanliness = clamp(p.stats.cleanliness - 2 * h, 8, 100);
-    p.stats.energy = clamp(p.stats.energy + 22 * nights - 1.5 * h, 10, 100);
-    p.stats.mood = clamp(p.stats.mood - h * 0.7 + (p.bond > 60 ? 6 : 0), 15, 95);
-
-    // доверие: скучал, но не разлюбил
-    if (h > 24) {
-      p.trust = clamp(p.trust - Math.min(14, ((h - 24) / 24) * 4), 25, 100);
-      events.push({ icon: 'heart', text: `${p.name} скучал и ждал у окна. Доверие чуть пошатнулось — обнимите его.` });
-      this.addMemory('эмоция', `Вы долго отсутствовали (${Math.floor(h)} ч). ${p.name} скучал.`);
-    }
-
-    // правдоподобные события
-    const rng = mulberry32(Math.floor(now / 1000));
-    if (rng() < 0.6) { p.stats.cleanliness = clamp(p.stats.cleanliness + 12, 0, 100); events.push({ icon: 'broom', text: `${p.name} навёл порядок в комнате и расставил всё по фэн-шую светлячков.` }); }
-    if (h > 6 && rng() < 0.5) {
-      s.inventory['keep_drawing'] = (s.inventory['keep_drawing'] ?? 0) + 1;
-      events.push({ icon: 'art', text: `${p.name} скучал и нарисовал картину. Там есть вы. И немного звёзд.` });
-      this.addMemory('момент', 'Нарисовал картину, пока вас не было');
-    }
-    if (rng() < 0.45) {
-      const w = PET_WORDS[Math.floor(rng() * PET_WORDS.length)];
-      if (!p.wordsLearned.includes(w)) p.wordsLearned.push(w);
-      p.growth.skills['интеллект'] = clamp((p.growth.skills['интеллект'] ?? 0) + 2, 0, 100);
-      events.push({ icon: 'book', text: `${p.name} выучил новое слово: «${w}».` });
-    }
-    if (s.furniture.includes('furn_plant') && rng() < 0.5) events.push({ icon: 'plant', text: `${p.name} полил растение-светлячок и поговорил с ним о погоде.` });
-    if (rng() < 0.35) { const found = 8 + Math.floor(rng() * 18); s.coins += found; events.push({ icon: 'spark', text: `${p.name} нашёл под ковриком ${found} искр.` }); }
-    if (h > 3) events.unshift({ icon: 'food', text: `${p.name} проголодался и скромно ждал (не клянчил. почти).` });
-    if (s.settings.reminders && h > 4) events.push({ icon: 'drop', text: `И главное: ${p.name} напоминает — попейте воды и разомните спинку!` });
-
-    s.pendingWelcome = {
-      awayMs: away,
-      events: events.slice(0, 6),
-      line: welcomeLine(away, p.trust, p.name),
-    };
-    s.lastSeen = now;
-    this.pushDiary(`Вас не было ${formatAway(away)}. ${p.name} ${p.trust < 50 ? 'немного грустил, но держался' : 'мечтал, убирался и учил слова'}.`, 'задумчивый');
-    this.emit();
-  }
-
-  dismissWelcome(hug: boolean) {
-    const p = this.state.pet;
-    if (hug && p) {
-      p.stats.mood = clamp(p.stats.mood + 12, 0, 100);
-      p.trust = clamp(p.trust + 3, 0, 100);
-      p.bond = clamp(p.bond + 2, 0, 100);
-      sfx.purr();
-    }
-    this.state.pendingWelcome = null;
-    this.commit();
-  }
-
-  /* ---------- живой тик (вызывается каждые несколько секунд) ---------- */
-  tick() {
-    const s = this.state; const p = s.pet;
-    const now = Date.now();
-    this.checkFocus();
-
-    if (p && !p.transcended) {
-      const hour = new Date().getHours();
-      const isNight = hour >= 22 || hour < 6;
-      const warmPurr = this.has('warm_purr') ? 0.6 : 1;
-      const moss = this.has('calm_moss') ? 0.6 : 1;
-
-      if (p.sleeping) {
-        p.stats.energy = clamp(p.stats.energy + (this.has('deep_sleep') ? 1.4 : 0.9), 0, 100);
-        p.stats.mood = clamp(p.stats.mood + 0.03, 0, 100);
-        if (p.stats.energy >= 100) { p.sleeping = false; this.setBubble('Я выспался! Мир, держись — я иду.'); }
-      } else {
-        p.stats.hunger = clamp(p.stats.hunger - 0.045, 0, 100);
-        p.stats.energy = clamp(p.stats.energy - 0.022 * moss * (isNight ? 1.4 : 1), 0, 100);
-        p.stats.cleanliness = clamp(p.stats.cleanliness - (this.has('gravity_nap') ? 0.006 : 0.01), 0, 100);
-        const moodTarget = 38 + p.bond * 0.35;
-        const nightShield = isNight && this.has('starlight') ? 0.2 : 1;
-        let dm = (moodTarget - p.stats.mood) * 0.002 * warmPurr * nightShield;
-        if (p.stats.hunger < 25) dm -= 0.04;
-        if (p.stats.energy < 20) dm -= 0.02;
-        p.stats.mood = clamp(p.stats.mood + dm, 10, 100);
-      }
-      p.bond = clamp(p.bond - 0.0008, 0, 100);
-      this.recalcTraits();
-    }
-
-    // пузырь реплики живёт 7 секунд
-    if (s.bubble && now - s.bubble.at > 7000) { s.bubble = null; this.emit(); return; }
-
-    this.checkDailyRollover(false);
-    this.emit();
-  }
-
-  private pushDiary(text: string, moodWord: string) {
-    this.state.diary.unshift({ id: uid(), day: Math.floor((Date.now() - this.state.createdAt) / DAY), date: new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }), text, moodWord });
-    if (this.state.diary.length > 40) this.state.diary.length = 40;
-  }
-
-  private checkDailyRollover(silent: boolean) {
     const s = this.state;
-    const today = dayKeyOf(Date.now());
-    if (s.dayKey === today) {
-      if (!s.quests.length) this.rollQuests();
-      return;
-    }
-    // вчерашняя запись дневника
-    const p = s.pet;
-    if (p && !silent) {
-      const w = getWeather();
-      this.pushDiary(makeDiaryText({
-        ownerName: s.owner.name,
-        fedTimes: s.counters['feed'] ?? 0,
-        playedTimes: s.counters['play'] ?? 0,
-        avgMood: p.stats.mood,
-        weather: w.label.toLowerCase(),
-      }), p.stats.mood > 65 ? MOOD_WORDS[Math.floor(Math.random() * 4)] : MOOD_WORDS[4 + Math.floor(Math.random() * 4)]);
-    }
-    s.dayKey = today;
-    this.rollQuests();
-
-    if (p && !p.transcended) {
-      const ageDays = (Date.now() - p.growth.bornAt) / DAY;
-      const stage = stageForAge(ageDays);
-      const prevStage = stageForAge((Date.now() - DAY - p.growth.bornAt) / DAY);
-      if (stage.key !== prevStage.key && !silent) {
-        this.setBubble(`Я вырос! Теперь я — ${stage.label.toLowerCase()}. Время такое странное… но тёплое.`);
-        this.addMemory('момент', `${p.name} стал старше: стадия «${stage.label}»`);
-        this.pushDiary(`Сегодня я стал ${stage.label.toLowerCase()}ом. Если честно, колени пока не трясутся.`, 'гордый');
-        sfx.chime();
-      }
-      // бережная трансценденция (только глубокая старость)
-      if (stage.key === 'elder' && ageDays > 45 && p.stats.energy < 30 && Math.random() < 0.22) {
-        this.transcend();
-      }
-    }
-    this.save();
+    s.focusMinutes = minutes;
+    s.focusEndsAt = Date.now() + minutes * 60000;
+    this.setBubble(`Договорились: ${minutes} минут фокуса. Я сижу тихо-тихо. Ну, почти.`);
+    this.commit();
   }
 
-  /* ---------- наследие ---------- */
+  /* ---------- болталка ---------- */
+  sendChat(text: string) {
+    const s = this.state; const p = s.pet; if (!p) return;
+    s.chat.push({ id: uid(), from: 'owner', text, at: Date.now() });
+    this.bumpCounter('talk');
+    const brain = chatBrain(text, s);
+    if (brain.save) this.addMemory(brain.save.kind, brain.save.text);
+    if (brain.ownerName) { s.owner.name = brain.ownerName; }
+    if (brain.favorite && !s.owner.favorites.includes(brain.favorite)) s.owner.favorites.push(brain.favorite);
+    if (brain.save?.kind === 'обещание') s.owner.promises.push(brain.save.text);
+    if (brain.moodDelta) p.stats.mood = clamp(p.stats.mood + brain.moodDelta, 0, 100);
+    s.chat = s.chat.slice(-60);
+    this.growSkill('эмпатия', 0.4);
+    this.save(); this.emit();
+    brain.lines.forEach((line, i) => {
+      setTimeout(() => {
+        s.chat.push({ id: uid(), from: 'pet', text: line, at: Date.now() });
+        s.chat = s.chat.slice(-60);
+        if (i === 0) this.setBubble(line.length > 60 ? line.slice(0, 57) + '…' : line);
+        sfx.bubble();
+        this.save(); this.emit();
+      }, 700 + i * 1300);
+    });
+  }
+
+  /* ---------- рождение, наследие, прощание ---------- */
+  hatchEgg(): Pet {
+    const s = this.state;
+    if (s.pet) return s.pet;
+    const seed = ((Date.now() ^ (Math.random() * 0xffffffff)) >>> 0) % 2147483647;
+    const inherit = s.inherit ? { colorPrimary: s.inherit.color, speciesKey: s.inherit.species } : null;
+    const dna = generateDNA(seed, inherit);
+    const rng = mulberry32(seed ^ 0x9e3779b9);
+    const personality = generatePersonality(rng, dna);
+    const pet: Pet = {
+      id: uid(),
+      name: this.makeName(dna, rng),
+      dna, personality,
+      stats: { hunger: 70, energy: 85, mood: 78, cleanliness: 90 },
+      growth: { xp: 0, level: 1, bornAt: Date.now(), skills: {} },
+      outfit: { hat: null, scarf: null, glasses: null, wings: null },
+      bond: 10, trust: 30,
+      sleeping: false, transcended: false,
+      evolutionTraits: [],
+      wordsLearned: [],
+      knowledge: [],
+    };
+    s.pet = pet;
+    s.freshHatch = true;
+    s.pendingWelcome = null;
+    this.addMemory('момент', `Я родился! Меня зовут ${pet.name}`);
+    sfx.hatch();
+    this.commit();
+    return pet;
+  }
+  private makeName(dna: ReturnType<typeof generateDNA>, rng: () => number): string {
+    const sp = speciesOf(dna.species);
+    let name = pick(rng, sp.syllA) + pick(rng, sp.syllB);
+    if (rng() < 0.5) name += pick(rng, sp.syllB);
+    if (rng() < 0.35) name += pick(rng, ['и', 'о', 'у', 'а']);
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+  renamePet(name: string) {
+    const p = this.state.pet; if (!p) return;
+    p.name = name.trim().slice(0, 14) || p.name;
+    this.commit();
+  }
+  completeReveal() { this.state.freshHatch = false; this.commit(); }
+
   private transcend() {
     const s = this.state; const p = s.pet; if (!p) return;
     p.transcended = true;
-    const skills = p.growth.skills;
-    const top = Object.entries(skills).sort((a, b) => b[1] - a[1])[0];
-    const bonusMap: Record<string, string> = { 'эмпатия': 'спокойствие', 'любознательность': 'любопытство', 'интеллект': 'мудрость', 'спорт': 'отвага', 'творчество': 'вдохновение', 'магия': 'вдохновение' };
+    const days = Math.floor((Date.now() - p.growth.bornAt) / 86400000);
     const entry: LegacyEntry = {
       id: uid(),
       name: p.name,
       species: speciesOf(p.dna.species).label,
       rarity: p.dna.rarity,
-      days: Math.floor((Date.now() - p.growth.bornAt) / DAY),
-      bonus: bonusMap[top[0]] ?? 'спокойствие',
+      days,
+      bonus: RARITY_BONUS[p.dna.rarity],
       colorPrimary: p.dna.colorPrimary,
-      epitaph: `${p.name} прожил(а) ${Math.floor((Date.now() - p.growth.bornAt) / DAY)} дней и стал(а) ${top[0]}ом на ${Math.round(top[1])} из 100. Теперь это маленький свет в нашем окне.`,
+      epitaph: `${p.name} прожил${days > 1 ? ' долгую' : ''} счастливую жизнь длиной в ${days} дней и стал духом памяти. ${p.evolutionTraits.length ? `Его черты — ${p.evolutionTraits.join(', ')} — остались с нами.` : 'Он умел радоваться мелочам. Это главное.'}`,
       at: Date.now(),
     };
-    s.legacy.push(entry);
     s.pendingFarewell = entry;
-    this.pushDiary(`${p.name} превратился в духа памяти. Он оставил нам ${entry.bonus} и целое созвездие тёплых дней.`, 'тихий');
-    sfx.sad();
-    this.save();
-    this.emit();
+    sfx.chime();
+  }
+
+  startNewGeneration(): LegacyEntry | null {
+    const s = this.state; const p = s.pet;
+    if (!p || !p.transcended || !s.pendingFarewell) return null;
+    const entry = s.pendingFarewell;
+    s.legacy.unshift(entry);
+    s.legacy = s.legacy.slice(0, 12);
+    s.inherit = { color: entry.colorPrimary, species: p.dna.species };
+    s.pet = null;
+    s.coins = Math.floor(s.coins / 2) + 50;
+    s.pendingFarewell = null;
+    s.pendingWelcome = null;
+    this.addMemory('момент', `${entry.name} стал духом памяти. В траве снова что-то светится…`);
+    this.commit();
+    return entry;
   }
   dismissFarewell() { this.state.pendingFarewell = null; this.commit(); }
-  startNewGeneration(): Pet | null {
-    const s = this.state;
-    const last = s.legacy[s.legacy.length - 1];
-    s.pendingFarewell = null;
-    const p = this.hatchEgg(last ? { colorPrimary: last.colorPrimary } : null);
-    return p;
+
+  /* ---------- настройки / перенос ---------- */
+  setSound(on: boolean) { this.state.settings.sound = on; setSoundEnabled(on); this.commit(); }
+  setReminders(on: boolean) { this.state.settings.reminders = on; this.commit(); }
+  exportSave(): string {
+    this.save();
+    return btoa(unescape(encodeURIComponent(JSON.stringify(this.state))));
   }
-
-  /* ---------- проактивные реплики ---------- */
-  idleSpeak() {
-    const p = this.state.pet;
-    if (!p || p.transcended || p.sleeping || this.state.pendingWelcome) return;
-    this.setBubble(proactiveLine(this.state));
+  importSave(code: string): boolean {
+    try {
+      const parsed = JSON.parse(decodeURIComponent(escape(atob(code.trim())))) as GameState;
+      if (!parsed || parsed.version !== 1) return false;
+      this.state = { ...defaultState(), ...parsed };
+      this.save(); this.emit();
+      return true;
+    } catch { return false; }
   }
-
-  toggleSetting(key: 'sound' | 'reminders') {
-    this.state.settings[key] = !this.state.settings[key];
-    if (key === 'sound') setSoundEnabled(this.state.settings.sound);
-    this.commit();
+  resetAll() {
+    try { localStorage.removeItem(KEY); } catch { /* noop */ }
+    this.state = defaultState();
+    this.emit();
   }
 }
 
-/* ============================================================
- * Утилиты времени и погоды (TimeEngine helpers)
- * ============================================================ */
-export function formatAway(ms: number): string {
-  const h = ms / HOUR;
-  if (h < 1) return `${Math.max(1, Math.round(ms / 60000))} мин`;
-  if (h < 48) return `${Math.floor(h)} ч ${Math.round((ms % HOUR) / 60000)} мин`;
-  return `${Math.floor(h / 24)} дн ${Math.floor(h % 24)} ч`;
+/* коды погоды Open-Meteo → виды */
+function mapWmo(code: number): string {
+  if (code === 0) return 'clear';
+  if (code <= 3) return 'clouds';
+  if (code === 45 || code === 48) return 'clouds';
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'rain';
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+  if (code >= 95) return 'rain';
+  return 'clouds';
 }
-export function timePhase(): 'morning' | 'day' | 'evening' | 'night' {
-  const h = new Date().getHours();
-  if (h >= 5 && h < 9) return 'morning';
-  if (h >= 9 && h < 17) return 'day';
-  if (h >= 17 && h < 22) return 'evening';
-  return 'night';
-}
-export function getWeather() {
-  const d = new Date();
-  const doy = Math.floor((d.getTime() - new Date(d.getFullYear(), 0, 0).getTime()) / DAY);
-  const rng = mulberry32(doy * 7 + d.getFullYear());
-  const month = d.getMonth();
-  const winter = month === 11 || month <= 1;
-  const r = rng();
-  if (winter && r < 0.4) return { kind: 'snow', label: 'Снег' };
-  if (r < 0.35) return { kind: 'rain', label: 'Дождь' };
-  if (r < 0.55) return { kind: 'clouds', label: 'Облачно' };
-  if (r < 0.75) return { kind: 'clear', label: 'Ясно' };
-  return { kind: 'wind', label: 'Ветерок' };
+function wmoLabel(code: number, temp?: number): string {
+  const t = typeof temp === 'number' ? `${Math.round(temp)}°` : '';
+  if (code === 0) return `Ясно ${t}`;
+  if (code <= 3) return `Облачно ${t}`;
+  if (code === 45 || code === 48) return `Туман ${t}`;
+  if (code >= 71 && code <= 77) return `Снег ${t}`;
+  if (code >= 95) return `Гроза ${t}`;
+  return `Дождь ${t}`;
 }
 
-export const engine = new GameEngine();
+export const engine = new Engine();
+setSoundEnabled(engine.state.settings.sound);
