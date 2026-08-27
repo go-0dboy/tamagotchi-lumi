@@ -130,6 +130,21 @@ html, body {
 .anim-walk-strip { animation-name: walkStrip; animation-timing-function: linear; animation-iteration-count: infinite; }
 .anim-walker { animation: walkBob 0.5s ease-in-out infinite; }
 
+/* облако снов: образы по очереди проявляются и гаснут */
+@keyframes dreamIcon {
+  0%, 30%, 100% { opacity: 0; transform: scale(0.5) translateY(4px); }
+  6%, 24% { opacity: 1; transform: scale(1.1) translateY(0); }
+}
+.dream-icon { animation: dreamIcon 6s ease-in-out infinite both; }
+
+/* всплывающие Z-z-z над спящим питомцем */
+@keyframes zzzRise {
+  0% { opacity: 0; transform: translate(0, 10px) scale(0.55) rotate(-6deg); }
+  22% { opacity: 1; }
+  100% { opacity: 0; transform: translate(16px, -42px) scale(1.15) rotate(10deg); }
+}
+.zzz { position: absolute; font-family: var(--font-display); font-weight: 700; color: #8ecae6; text-shadow: 0 0 10px rgba(142,202,230,0.6); animation: zzzRise 3.2s ease-out infinite both; pointer-events: none; }
+
 .blink-lid { animation: lidBlink 4.6s ease-in-out infinite; transform-origin: 50% 0%; transform-box: fill-box; }
 .blink-lid2 { animation: lidBlink 4.6s ease-in-out infinite; animation-delay: -0.06s; transform-origin: 50% 0%; transform-box: fill-box; }
 .wing-l { animation: wingFlap 2.6s ease-in-out infinite; transform-origin: 90% 20%; transform-box: fill-box; }

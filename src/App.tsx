@@ -78,6 +78,20 @@ function Game() {
     if (s.fx?.kind === 'pet') setSquishAt(s.fx.at);
   }, [s.fx]);
 
+  /* одноразовые эффекты (сердца/метла/пузыри) гаснут после проигрывания */
+  useEffect(() => {
+    if (!s.fx) return;
+    const t = setTimeout(() => engine.clearFx(), 2600);
+    return () => clearTimeout(t);
+  }, [s.fx]);
+
+  /* реплика питомца исчезает сама через несколько секунд */
+  useEffect(() => {
+    if (!s.bubble) return;
+    const t = setTimeout(() => engine.clearBubble(), 5000);
+    return () => clearTimeout(t);
+  }, [s.bubble]);
+
   /* горячие клавиши для ПК: 1–7 повторяют кнопки под сценой */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -124,7 +138,8 @@ function Game() {
       <div className="lg:h-dvh lg:grid lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-4 lg:p-4 lg:max-w-[1280px] lg:mx-auto">
         {/* ================= СЦЕНА ================= */}
         <div className="relative h-[46dvh] min-h-[330px] sm:h-[50dvh] sm:min-h-[380px] lg:h-auto lg:min-h-0 overflow-hidden border-b lg:border border-sky/10 lg:rounded-[28px]">
-          <RoomScene themeId={s.roomTheme} furniture={s.furniture} phase={phase} weather={weather}>
+          <RoomScene themeId={s.roomTheme} furniture={s.furniture} phase={phase} weather={weather}
+            sleeping={pet.sleeping} cleanliness={pet.stats.cleanliness}>
             {/* инфо-чипы сцены */}
             <div className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3 flex gap-1.5 sm:gap-2 z-20">
               <span className="chip !text-[11px] backdrop-blur-sm bg-night-900/60"><Icon name={PHASE_ICON[phase]} className="w-3.5 h-3.5 text-butter" />{PHASE_LABEL[phase]}</span>
@@ -165,16 +180,16 @@ function Game() {
             {/* одноразовые анимации: сердца, метла, пузыри */}
             {!pet.transcended && s.fx && <FxLayer fx={s.fx} />}
 
-            {/* быстрые действия: на ПК подняты над плавающим меню */}
+            {/* быстрые действия: на ПК подняты над плавающим меню; во сне доступны только сон и уборка */}
             {!pet.transcended && (
               <div className="absolute inset-x-0 bottom-2.5 sm:bottom-3 lg:bottom-[76px] z-20 flex justify-center gap-0.5 sm:gap-1.5 px-1">
-                <QuickBtn icon="berry" label="Кухня" onClick={() => setTab('care')} />
-                <QuickBtn icon="heart" label="Гладить" onClick={() => engine.petStroke()} />
+                <QuickBtn icon="berry" label="Кухня" disabled={pet.sleeping} onClick={() => setTab('care')} />
+                <QuickBtn icon="heart" label="Гладить" disabled={pet.sleeping} onClick={() => engine.petStroke()} />
                 <QuickBtn icon="broom" label="Уборка" onClick={() => { const r = engine.cleanRoom(); if (!r.ok) sfx.sad(); }} />
-                <QuickBtn icon="drop" label="Купать" onClick={() => { const r = engine.bathPet(); if (!r.ok) sfx.sad(); }} />
+                <QuickBtn icon="drop" label="Купать" disabled={pet.sleeping} onClick={() => { const r = engine.bathPet(); if (!r.ok) sfx.sad(); }} />
                 <QuickBtn icon="sleep" label={pet.sleeping ? 'Будить' : 'Спать'} onClick={() => engine.toggleSleep()} />
-                <QuickBtn icon="book" label="Учиться" onClick={() => setShowLearning(true)} />
-                <QuickBtn icon="walk" label="Гулять" onClick={() => setShowWalk(true)} />
+                <QuickBtn icon="book" label="Учиться" disabled={pet.sleeping} onClick={() => setShowLearning(true)} />
+                <QuickBtn icon="walk" label="Гулять" disabled={pet.sleeping} onClick={() => setShowWalk(true)} />
               </div>
             )}
           </RoomScene>
@@ -236,9 +251,10 @@ function Game() {
   );
 }
 
-function QuickBtn({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+function QuickBtn({ icon, label, onClick, disabled }: { icon: string; label: string; onClick: () => void; disabled?: boolean }) {
   return (
-    <button onClick={onClick} className="flex flex-col items-center gap-0.5 sm:gap-1 group min-w-0">
+    <button onClick={onClick} disabled={disabled} title={disabled ? 'Питомец спит — сначала разбудите' : undefined}
+      className={`flex flex-col items-center gap-0.5 sm:gap-1 group min-w-0 transition-opacity ${disabled ? 'opacity-30 saturate-50 pointer-events-none' : ''}`}>
       <span className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border border-sky/20 text-cream bg-night-900/70 backdrop-blur-sm shadow-lg transition-all group-hover:-translate-y-1 group-hover:border-butter/60 group-hover:text-butter group-active:scale-90">
         <Icon name={icon} className="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5" />
       </span>

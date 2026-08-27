@@ -297,6 +297,14 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
   return (
     <div ref={wrapRef} className={`relative cursor-pointer select-none ${pet.dna.idle}`} style={{ width: size }}
       onPointerDown={onStroke} role="button" aria-label={`Погладить ${pet.name}`}>
+      {/* всплывающие Z-z-z, когда спит */}
+      {sleeping && (
+        <>
+          <span className="zzz" style={{ top: '6%', right: '4%', fontSize: '26px', animationDelay: '0s' }}>Z</span>
+          <span className="zzz" style={{ top: '14%', right: '14%', fontSize: '19px', animationDelay: '1.1s' }}>z</span>
+          <span className="zzz" style={{ top: '22%', right: '2%', fontSize: '14px', animationDelay: '2.2s' }}>z</span>
+        </>
+      )}
       {auraTraits && (
         <div className="absolute -inset-6 rounded-full pointer-events-none" style={{
           background: `radial-gradient(circle, ${dna.aura}30 0%, transparent 68%)`,
@@ -351,6 +359,23 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
           <ellipse cx="80" cy="170" rx="10" ry="15" fill={c.p} stroke={c.a} strokeWidth="2" transform="rotate(16 80 170)" />
           <ellipse cx="160" cy="170" rx="10" ry="15" fill={c.p} stroke={c.a} strokeWidth="2" transform="rotate(-16 160 170)" />
 
+          {/* грязь, если питомца давно не купали */}
+          {stats.cleanliness < 55 && (
+            <g fill="#5a4632">
+              <ellipse cx="98" cy="120" rx="7" ry="5" opacity={stats.cleanliness < 32 ? 0.5 : 0.3} />
+              <ellipse cx="148" cy="128" rx="6" ry="4.5" opacity={stats.cleanliness < 32 ? 0.45 : 0.26} />
+              <ellipse cx="112" cy="186" rx="8" ry="5" opacity={stats.cleanliness < 32 ? 0.5 : 0.3} />
+              <ellipse cx="86" cy="152" rx="5" ry="4" opacity={stats.cleanliness < 32 ? 0.4 : 0.22} />
+              {stats.cleanliness < 32 && (
+                <>
+                  <ellipse cx="142" cy="180" rx="6" ry="4" opacity="0.45" />
+                  <ellipse cx="128" cy="104" rx="5" ry="3.5" opacity="0.4" />
+                  <path d="M104 100 q4 -3 8 0" stroke="#5a4632" strokeWidth="2.5" fill="none" strokeLinecap="round" opacity="0.45" />
+                </>
+              )}
+            </g>
+          )}
+
           {muzzle && <ellipse cx="120" cy="155" rx="17" ry="12" fill={c.s} opacity="0.95" />}
           {whiskers && (
             <g stroke="#fff3e2" strokeWidth="1.8" strokeLinecap="round" opacity="0.8">
@@ -394,13 +419,6 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
           {stage.key === 'elder' && (
             <g fill="#fff3e2" opacity="0.9">
               <circle cx="106" cy="172" r="4" /><circle cx="114" cy="176" r="3.4" /><circle cx="120" cy="178" r="3" /><circle cx="126" cy="176" r="3.4" /><circle cx="134" cy="172" r="4" />
-            </g>
-          )}
-
-          {sleeping && (
-            <g className="anim-float" fill="none" stroke="#8ecae6" strokeWidth="3" strokeLinecap="round">
-              <path d="M170 96 h12 l-12 12 h12" />
-              <path d="M188 74 h9 l-9 9 h9" opacity="0.7" />
             </g>
           )}
 
