@@ -55,7 +55,10 @@ function Game() {
       if (!engine.state.settings.reminders) return;
       const p = engine.state.pet;
       if (p && !p.sleeping && !p.transcended && !document.hidden) {
-        engine.setBubble(proactiveLine(engine.state));
+        // сначала — «умная» реплика от нейросети (погода, факты, воспоминания),
+        // если её нет — обычная проактивная фраза
+        const line = engine.smartProactive() ?? proactiveLine(engine.state);
+        engine.setBubble(line);
         engine.save();
       }
     }, 40000);
@@ -120,7 +123,7 @@ function Game() {
   const newGeneration = () => engine.startNewGeneration();
 
   return (
-    <div className="min-h-dvh lg:h-dvh lg:overflow-hidden" style={{ background: 'radial-gradient(ellipse at 20% 0%, #1c2a52 0%, #10172b 55%)' }}>
+    <div className="min-h-dvh lg:h-dvh lg:flex lg:flex-col lg:overflow-hidden" style={{ background: 'radial-gradient(ellipse at 20% 0%, #1c2a52 0%, #10172b 55%)' }}>
       {/* ------- оверлеи ------- */}
       {s.freshHatch && (
         <RevealSheet pet={pet} onDone={() => engine.completeReveal()} />
@@ -135,9 +138,22 @@ function Game() {
       {showLearning && pet && !pet.transcended && <Learning petName={pet.name} onClose={() => setShowLearning(false)} />}
       {showWalk && pet && !pet.transcended && <Walk onClose={() => setShowWalk(false)} />}
 
-      <div className="lg:h-dvh lg:grid lg:grid-cols-[minmax(0,1fr)_440px] lg:gap-4 lg:p-4 lg:max-w-[1280px] lg:mx-auto">
+      {/* ================= НАВИГАЦИЯ СВЕРХУ ================= */}
+      <header className="sticky top-0 z-30 border-b border-sky/10 shrink-0" style={{ background: 'rgba(12,18,32,0.85)', backdropFilter: 'blur(12px)' }}>
+        <nav className="max-w-[1280px] mx-auto flex items-center justify-center gap-0.5 sm:gap-1 px-1.5 py-1.5">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => { setTab(t.id as typeof tab); sfx.tap(); }}
+              className={`flex-1 sm:flex-none flex flex-col sm:flex-row items-center gap-0.5 sm:gap-1.5 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-[9px] sm:text-[12px] font-extrabold leading-none transition-all whitespace-nowrap ${tab === t.id ? 'bg-butter/15 text-butter' : 'text-cream/50 hover:text-cream hover:bg-night-700/60'}`}>
+              <Icon name={t.icon} className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <div className="lg:flex-1 lg:min-h-0 lg:grid lg:grid-cols-[minmax(0,1fr)_440px] lg:grid-rows-[minmax(0,1fr)] lg:gap-4 lg:p-4 lg:pt-2.5 lg:max-w-[1280px] lg:mx-auto lg:w-full">
         {/* ================= СЦЕНА ================= */}
-        <div className="relative h-[46dvh] min-h-[330px] sm:h-[50dvh] sm:min-h-[380px] lg:h-auto lg:min-h-0 overflow-hidden border-b lg:border border-sky/10 lg:rounded-[28px]">
+        <div className="relative h-[46dvh] min-h-[330px] sm:h-[50dvh] sm:min-h-[380px] lg:h-full lg:min-h-0 overflow-hidden border-b lg:border border-sky/10 lg:rounded-[28px]">
           <RoomScene themeId={s.roomTheme} furniture={s.furniture} phase={phase} weather={weather}
             sleeping={pet.sleeping} cleanliness={pet.stats.cleanliness}>
             {/* инфо-чипы сцены */}
@@ -170,7 +186,7 @@ function Game() {
                 <button className="btn btn-primary" onClick={newGeneration}><Icon name="spark" className="w-5 h-5" />Новое яйцо</button>
               </div>
             ) : (
-              <div className="absolute inset-x-0 bottom-[84px] sm:bottom-[92px] lg:bottom-[150px] flex justify-center z-10">
+              <div className="absolute inset-x-0 bottom-[84px] sm:bottom-[92px] lg:bottom-[70px] flex justify-center z-10">
                 <div key={squishAt} className={squishAt ? 'anim-squish' : ''}>
                   <PetSprite pet={pet} size="min(50vw, 240px)" onStroke={() => engine.petStroke()} />
                 </div>
@@ -180,9 +196,9 @@ function Game() {
             {/* одноразовые анимации: сердца, метла, пузыри */}
             {!pet.transcended && s.fx && <FxLayer fx={s.fx} />}
 
-            {/* быстрые действия: на ПК подняты над плавающим меню; во сне доступны только сон и уборка */}
+            {/* быстрые действия под питомцем; во сне доступны только сон и уборка */}
             {!pet.transcended && (
-              <div className="absolute inset-x-0 bottom-2.5 sm:bottom-3 lg:bottom-[76px] z-20 flex justify-center gap-0.5 sm:gap-1.5 px-1">
+              <div className="absolute inset-x-0 bottom-2.5 sm:bottom-3 z-20 flex justify-center gap-0.5 sm:gap-1.5 px-1">
                 <QuickBtn icon="berry" label="Кухня" disabled={pet.sleeping} onClick={() => setTab('care')} />
                 <QuickBtn icon="heart" label="Гладить" disabled={pet.sleeping} onClick={() => engine.petStroke()} />
                 <QuickBtn icon="broom" label="Уборка" onClick={() => { const r = engine.cleanRoom(); if (!r.ok) sfx.sad(); }} />
@@ -196,8 +212,8 @@ function Game() {
         </div>
 
         {/* ================= ПАНЕЛЬ ================= */}
-        <div className="lg:h-dvh lg:overflow-y-auto no-scrollbar lg:pr-1">
-          <div className="p-3.5 sm:p-4 pb-36 lg:pb-6 space-y-3.5 max-w-xl lg:max-w-none mx-auto">
+        <div className="lg:h-full lg:overflow-y-auto no-scrollbar lg:pr-1">
+          <div className="p-3.5 sm:p-4 pb-8 lg:pb-6 space-y-3.5 max-w-xl lg:max-w-none mx-auto">
             <HUD pet={pet} coins={s.coins} weather={weather} soundOn={s.settings.sound}
               onToggleSound={() => engine.setSound(!s.settings.sound)} onOpenSettings={() => setShowSettings(true)} />
 
@@ -222,31 +238,6 @@ function Game() {
         </div>
       </div>
 
-      {/* ================= НАВИГАЦИЯ ================= */}
-      {/* мобильная: нижняя панель */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 safe-bottom" style={{ background: 'linear-gradient(180deg, transparent, rgba(10,15,30,0.92) 30%)' }}>
-        <div className="flex justify-around items-end px-2 pt-5 pb-1.5 max-w-md mx-auto">
-          {TABS.map(t => (
-            <button key={t.id} onClick={() => { setTab(t.id as typeof tab); sfx.tap(); }}
-              className={`tab-btn ${tab === t.id ? 'active' : ''}`}>
-              <Icon name={t.icon} className="w-5.5 h-5.5" />
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </nav>
-
-      {/* десктоп: плавающий остров */}
-      <nav className="hidden lg:flex fixed bottom-5 left-1/2 -translate-x-1/2 z-40 gap-1 px-2 py-2 rounded-[24px] border border-sky/15 shadow-2xl"
-        style={{ background: 'rgba(16,23,43,0.88)', backdropFilter: 'blur(14px)' }}>
-        {TABS.map(t => (
-          <button key={t.id} onClick={() => { setTab(t.id as typeof tab); sfx.tap(); }}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[12.5px] font-extrabold transition-all ${tab === t.id ? 'bg-butter/15 text-butter' : 'text-cream/55 hover:text-cream hover:bg-night-700/60'}`}>
-            <Icon name={t.icon} className="w-4.5 h-4.5" />
-            {t.label}
-          </button>
-        ))}
-      </nav>
     </div>
   );
 }

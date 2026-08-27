@@ -8,8 +8,11 @@ import { generateDNA, generatePersonality, mulberry32, pick, uid, speciesOf, RAR
 import { FOODS, SHOP, KEEPSAKES, QUEST_POOL, SKILLS, TRAIT_THRESHOLD } from './content';
 import { makeDreamText, dreamGiftId, makeDiaryText, MOOD_WORDS, OFFLINE_EVENTS, chatBrain, welcomeLine, WORDS } from './speech';
 import { sfx, setSoundEnabled } from './sound';
+import { MiniLM, baseCorpus } from './neuro';
+import { FALLBACK_FACTS } from './knowledge';
 
 const KEY = 'lumos.save.v1';
+const BRAIN_KEY = 'lumos.brain.v1';
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const dayKeyOf = (t: number) => new Date(t).toISOString().slice(0, 10);
 const hourMs = 3600000;
@@ -84,6 +87,8 @@ function defaultState(): GameState {
 class Engine {
   state: GameState = defaultState();
   private listeners = new Set<() => void>();
+  private lm: MiniLM | null = null; // языковая нейросеть питомца
+  private brainDirty = false;
 
   constructor() { this.load(); }
 
@@ -92,6 +97,8 @@ class Engine {
   save() {
     this.state.lastSeen = Date.now();
     try { localStorage.setItem(KEY, JSON.stringify(this.state)); } catch { /* приватный режим */ }
+    // мозг сохраняется вместе с состоянием, когда он чему-то научился
+    if (this.brainDirty) { this.saveBrain(); this.brainDirty = false; }
   }
   private load() {
     try {
@@ -148,8 +155,112 @@ class Engine {
     }
     this.state.lastSeen = now;
     this.ensureQuests();
+    this.initBrain();
     this.save();
     this.emit();
+  }
+
+  /* ==================== нейросеть питомца ==================== */
+  /** загрузить мозг из localStorage или вырастить новый */
+  private initBrain() {
+    try {
+      const raw = localStorage.getItem(BRAIN_KEY);
+      if (raw) {
+        const loaded = MiniLM.deserialize(JSON.parse(raw));
+        if (loaded) { this.lm = loaded; return; }
+      }
+    } catch { /* повреждённый мозг — вырастим новый */ }
+    const lm = new MiniLM();
+    lm.buildVocab(baseCorpus());
+    lm.train(baseCorpus(), 2, 0.1);
+    this.lm = lm;
+    this.saveBrain();
+  }
+
+  private saveBrain() {
+    if (!this.lm) return;
+    try { localStorage.setItem(BRAIN_KEY, JSON.stringify(this.lm.serialize())); } catch { /* переполнение — не страшно */ }
+  }
+
+  /** онлайн-дообучение на репликах разговора */
+  private brainLearn(lines: string[]) {
+    const lm = this.lm; if (!lm) return;
+    for (const l of lines) if (l) lm.learnLine(l);
+    this.brainDirty = true; // сохранится вместе с ближайшим save()
+  }
+
+  /** мысль «из головы» — сеть продолжает фразу, начатую с ключевых слов */
+  neuroThought(seedText?: string): string {
+    const lm = this.lm; if (!lm || !lm.ready) return '';
+    let seeds: string[] = [];
+    if (seedText) seeds = lm.tokenize(seedText).filter(w => lm.knows(w));
+    if (!seeds.length && this.state.pet) {
+      const pool = [
+        ...this.state.pet.wordsLearned,
+        ...this.state.pet.knowledge.filter(k => !k.startsWith('fact:')),
+      ];
+      if (pool.length) seeds = [pool[Math.floor(Math.random() * pool.length)]];
+    }
+    return lm.generate(seeds.slice(0, 2), 13, 0.9);
+  }
+
+  brainInfo(): { ready: boolean; words: number; tokens: number } {
+    return this.lm
+      ? { ready: this.lm.ready, words: this.lm.vocabSize, tokens: this.lm.trainedTokens }
+      : { ready: false, words: 0, tokens: 0 };
+  }
+
+  /** экспорт/импорт ТОЛЬКО модели */
+  exportBrain(): string | null {
+    return this.lm ? btoa(unescape(encodeURIComponent(JSON.stringify(this.lm.serialize())))) : null;
+  }
+  importBrain(code: string): boolean {
+    try {
+      const d = JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+      const lm = MiniLM.deserialize(d);
+      if (!lm) return false;
+      this.lm = lm;
+      this.saveBrain();
+      this.setBubble('Ого… я помню слова, которых раньше не знал! Спасибо за новый ум!');
+      this.commit();
+      return true;
+    } catch { return false; }
+  }
+
+  /** проактивная «умная» реплика: погода, факты, воспоминания сети */
+  smartProactive(): string | null {
+    const s = this.state; const p = s.pet; if (!p || p.sleeping || p.transcended) return null;
+    const today = dayKeyOf(Date.now());
+
+    // предупреждение о плохой погоде (раз в день)
+    const wr = s.weatherReal;
+    const warnedToday = !!s.counters.weatherWarnAt && dayKeyOf(s.counters.weatherWarnAt) === today;
+    if (wr && (wr.kind === 'rain' || wr.kind === 'snow') && !warnedToday) {
+      s.counters.weatherWarnAt = Date.now();
+      this.addMemory('факт', `Предупредил о погоде: ${wr.label}`);
+      return wr.kind === 'snow'
+        ? `За окном сегодня снег${wr.temp ? `, ${wr.temp}°` : ''}. Одевайся теплее! Я уже надел воображаемый шарф.`
+        : `Похоже, сегодня дождь${wr.temp ? `, ${wr.temp}°` : ''}. Не забудь зонт! А лужи я посторожу.`;
+    }
+
+    const roll = Math.random();
+    // добрая новость / выученный факт
+    if (roll < 0.28) {
+      const facts = s.memories.filter(m => m.kind === 'факт');
+      if (facts.length && Math.random() < 0.65) {
+        const f = facts[Math.floor(Math.random() * facts.length)];
+        return `Помнишь, я узнал: ${f.text.toLowerCase()}`;
+      }
+      const good = FALLBACK_FACTS[Math.floor(Math.random() * FALLBACK_FACTS.length)];
+      return `Добрая новость из мира: ${good.title.toLowerCase()} — ${good.text.toLowerCase()}`;
+    }
+
+    // воспоминание, сгенерированное нейросетью
+    if (roll < 0.5) {
+      const t = this.neuroThought();
+      if (t) return Math.random() < 0.5 ? `Я тут вспомнил: ${t.charAt(0).toLowerCase() + t.slice(1)}.` : `Знаешь, о чём я думаю? ${t}`;
+    }
+    return null;
   }
 
   tick() {
@@ -251,7 +362,7 @@ class Engine {
       const text = makeDreamText();
       s.dreams.unshift({ id: uid(), at: Date.now() - (nights - i) * 8 * hourMs, text, gift });
       if (gift) {
-        s.inventory[gift] = (s.inventory[gift] ?? 0) + 1;
+        this.inv(gift, 1);
         this.growSkill('магия', 1);
       }
     }
@@ -274,7 +385,7 @@ class Engine {
       p.stats.cleanliness = clamp(p.stats.cleanliness + 30, 0, 100);
       events.push({ icon: 'broom', text: OFFLINE_EVENTS.cleaned });
     } else if (hours > 3 && roll < 0.65) {
-      s.inventory['keep_drawing'] = (s.inventory['keep_drawing'] ?? 0) + 1;
+      this.inv('keep_drawing', 1);
       events.push({ icon: 'drawing', text: OFFLINE_EVENTS.drew });
     }
     if (hours > 6 && Math.random() < 0.6) {
@@ -329,6 +440,12 @@ class Engine {
     s.memories = s.memories.slice(0, 60);
   }
 
+  /** иммутабельное изменение инвентаря — чтобы UI гарантированно обновлялся */
+  private inv(id: string, delta: number) {
+    const s = this.state;
+    s.inventory = { ...s.inventory, [id]: (s.inventory[id] ?? 0) + delta };
+  }
+
   growSkill(key: string, amount: number) {
     const p = this.state.pet; if (!p) return;
     const before = p.growth.skills[key] ?? 0;
@@ -373,7 +490,7 @@ class Engine {
     if (p.sleeping) return { ok: false, msg: 'Тс-с… он спит. Еда подождёт.' };
     const food = FOODS.find(f => f.id === foodId); if (!food) return { ok: false, msg: 'Нет такой еды.' };
     const owned = s.inventory[foodId] ?? 0;
-    if (owned > 0) s.inventory[foodId] = owned - 1;
+    if (owned > 0) this.inv(foodId, -1);
     else if (s.coins >= food.price) s.coins -= food.price;
     else return { ok: false, msg: `Не хватает искр (${food.price}). Сыграйте в игру или сходите на прогулку!` };
     const liked = p.personality.likes.includes(food.tag);
@@ -493,7 +610,7 @@ class Engine {
     let souvenir: string | undefined;
     if (Math.random() < 0.4) {
       souvenir = pick(Math.random, KEEPSAKES).id;
-      s.inventory[souvenir] = (s.inventory[souvenir] ?? 0) + 1;
+      this.inv(souvenir, 1);
     }
     this.addMemory('момент', story);
     this.setBubble(story);
@@ -574,7 +691,7 @@ class Engine {
     const s = this.state; const p = s.pet; if (!p) return { ok: false, msg: '' };
     const owned = s.inventory[itemId] ?? 0;
     if (owned <= 0) return { ok: false, msg: 'Подарка нет в рюкзаке.' };
-    s.inventory[itemId] = owned - 1;
+    this.inv(itemId, -1);
     const def = [...SHOP, ...KEEPSAKES].find(i => i.id === itemId);
     const name = def?.name ?? 'подарок';
     p.bond = clamp(p.bond + 3, 0, 100);
@@ -597,10 +714,10 @@ class Engine {
     if (s.coins < item.price) return { ok: false, msg: `Не хватает искр: нужно ${item.price}.` };
     s.coins -= item.price;
     if (item.kind === 'furniture') {
-      if (!s.furniture.includes(itemId)) s.furniture.push(itemId);
+      if (!s.furniture.includes(itemId)) s.furniture = [...s.furniture, itemId];
       this.setBubble(`Ого, ${item.name.toLowerCase()}! Комната стала ещё уютнее.`);
     } else {
-      s.inventory[itemId] = (s.inventory[itemId] ?? 0) + 1;
+      this.inv(itemId, 1);
       this.setBubble(`${item.name}! Примерим? Ну пожалуйста-пожалуйста!`);
     }
     sfx.coin();
@@ -684,10 +801,25 @@ class Engine {
     if (brain.favorite && !s.owner.favorites.includes(brain.favorite)) s.owner.favorites.push(brain.favorite);
     if (brain.save?.kind === 'обещание') s.owner.promises.push(brain.save.text);
     if (brain.moodDelta) p.stats.mood = clamp(p.stats.mood + brain.moodDelta, 0, 100);
+    // нейросеть учится на том, что написал хозяин, и что ответит питомец
+    this.brainLearn([text, ...brain.lines]);
     s.chat = s.chat.slice(-60);
     this.growSkill('эмпатия', 0.4);
     this.save(); this.emit();
-    brain.lines.forEach((line, i) => {
+
+    // иногда питомец добавляет «ассоциацию из головы» — фразу от нейросети,
+    // начатую с ключевых слов хозяина. Так разговор становится живее.
+    const replyLines = [...brain.lines];
+    if (Math.random() < 0.4) {
+      const assoc = this.neuroThought(text);
+      if (assoc && assoc.length > 6) {
+        replyLines.push(Math.random() < 0.5
+          ? `Кстати, ${assoc.charAt(0).toLowerCase() + assoc.slice(1)}.`
+          : `…и знаешь что? ${assoc}`);
+      }
+    }
+
+    replyLines.forEach((line, i) => {
       setTimeout(() => {
         s.chat.push({ id: uid(), from: 'pet', text: line, at: Date.now() });
         s.chat = s.chat.slice(-60);
@@ -783,20 +915,37 @@ class Engine {
   setReminders(on: boolean) { this.state.settings.reminders = on; this.commit(); }
   exportSave(): string {
     this.save();
-    return btoa(unescape(encodeURIComponent(JSON.stringify(this.state))));
+    // вместе с состоянием питомца переносится и его мозг (нейросеть)
+    const payload = { __lumos: 2, state: this.state, brain: this.lm ? this.lm.serialize() : null };
+    return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
   }
   importSave(code: string): boolean {
     try {
-      const parsed = JSON.parse(decodeURIComponent(escape(atob(code.trim())))) as GameState;
-      if (!parsed || parsed.version !== 1) return false;
-      this.state = { ...defaultState(), ...parsed };
-      this.save(); this.emit();
-      return true;
+      const parsed = JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+      // новый формат: { __lumos: 2, state, brain }
+      if (parsed && parsed.__lumos === 2 && parsed.state && parsed.state.version === 1) {
+        this.state = { ...defaultState(), ...parsed.state };
+        if (parsed.brain) {
+          const lm = MiniLM.deserialize(parsed.brain);
+          if (lm) { this.lm = lm; this.saveBrain(); }
+        }
+        this.save(); this.emit();
+        return true;
+      }
+      // старый формат: просто состояние
+      if (parsed && parsed.version === 1) {
+        this.state = { ...defaultState(), ...parsed };
+        this.save(); this.emit();
+        return true;
+      }
+      return false;
     } catch { return false; }
   }
   resetAll() {
-    try { localStorage.removeItem(KEY); } catch { /* noop */ }
+    try { localStorage.removeItem(KEY); localStorage.removeItem(BRAIN_KEY); } catch { /* noop */ }
     this.state = defaultState();
+    this.lm = null;
+    this.initBrain();
     this.emit();
   }
 }
