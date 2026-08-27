@@ -101,6 +101,10 @@ html, body {
 @keyframes walkStrip { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @keyframes walkBob { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-5px) rotate(1.2deg); } }
 
+/* индикатор «печатает…» */
+@keyframes blinkDot { 0%, 80%, 100% { opacity: 0.25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.anim-blink { animation: blinkDot 1s ease-in-out infinite; }
+
 /* ---------- animation helpers ---------- */
 .anim-breathe { animation: breathe 3.6s ease-in-out infinite; transform-origin: 50% 92%; }
 .anim-bob { animation: bob 3s ease-in-out infinite; }
