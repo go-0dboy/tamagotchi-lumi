@@ -48,9 +48,9 @@ export function Onboarding() {
             <p className="text-[10.5px] font-black text-cream/45 uppercase tracking-wider mb-1">Как играть</p>
             {([
               ['heart', 'Гладьте питомца, купайте его, убирайте комнату — на всё есть анимации.'],
-              ['spark', 'Кнопки под сценой: кухня, гладить, уборка, купание, сон, учёба, прогулка (на ПК — клавиши 1–7).'],
+              ['spark', 'Кнопки под сценой: кухня, уборка, купание, сон, учёба, прогулка (на ПК — клавиши 1–7).'],
               ['moon', 'Закройте игру — питомец продолжит жить: поспит, увидит сон, соскучится.'],
-              ['chat', 'В болталке питомец запоминает ваше имя и любимое, отвечает по-настоящему и учится на каждом слове.'],
+              ['diary', 'Вкладки: забота и лавка, 6 мини-игр, болталка с памятью, дневник и сны.'],
             ] as [string, string][]).map(([ic, txt]) => (
               <div key={ic} className="flex items-start gap-2">
                 <Icon name={ic} className="w-4 h-4 text-butter shrink-0 mt-0.5" />
@@ -354,15 +354,14 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
           <div className="flex items-center justify-between gap-2 mb-1.5">
             <div className="flex items-center gap-2.5 text-cream/85">
               <Icon name="brain" className="w-5 h-5 text-lilac" />
-              <span className="text-[13px] font-extrabold">Мозг питомца</span>
+              <span className="text-[13px] font-extrabold">Нейросеть питомца</span>
             </div>
             <span className={`chip !text-[10px] ${brain.ready ? 'text-mint' : 'text-cream/40'}`}>
               {brain.ready ? `знает ${brain.words} слов` : 'растёт…'}
             </span>
           </div>
           <p className="text-[10.5px] font-bold text-cream/40 leading-snug mb-2.5">
-            Маленькая нейросеть учится на каждом разговоре, сказке и прочитанной статье — обработано {brain.tokens.toLocaleString('ru-RU')} слов.
-            Знания из Википедии питомец получает на лету. Хранится вместе с сейвом, выгружается отдельной моделью.
+            Маленькая языковая модель учится на разговорах, фактах и снах. Обработано {brain.tokens.toLocaleString('ru-RU')} слов. Хранится вместе с питомцем, выгружается отдельной моделью.
           </p>
           <div className="grid grid-cols-2 gap-2">
             <button className="btn btn-lilac !py-2 !text-xs" onClick={doExportBrain}><Icon name="export" className="w-4 h-4" />Модель</button>
@@ -407,7 +406,7 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
           {confirmReset ? 'Точно? Питомец и воспоминания исчезнут. Нажмите ещё раз' : 'Начать новую историю…'}
         </button>
 
-        <p className="text-center text-[10.5px] font-bold text-cream/30">Люмос · живёт между сном и рассветом · v1.2</p>
+        <p className="text-center text-[10.5px] font-bold text-cream/30">Люмос · живёт между сном и рассветом · v1.1</p>
       </div>
     </div>
   );

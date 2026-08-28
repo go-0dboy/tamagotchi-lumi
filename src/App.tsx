@@ -37,7 +37,6 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showLearning, setShowLearning] = useState(false);
   const [showWalk, setShowWalk] = useState(false);
-  const [sleepLearning, setSleepLearning] = useState(false);
   const [, force] = useState(0);
 
   const seasonal = useMemo(() => getWeather(), []);
@@ -89,15 +88,10 @@ export default function App() {
   /* самообучение нейросети во сне (нужен интернет) */
   const petSleeping = !!s.pet?.sleeping && !s.pet.transcended;
   useEffect(() => {
-    if (!petSleeping) { setSleepLearning(false); return; }
-    let alive = true;
-    const learn = async () => {
-      const ok = await engine.sleepLearn();
-      if (alive) setSleepLearning(ok);
-    };
-    void learn();
-    const iv = setInterval(() => void learn(), 20000);
-    return () => { alive = false; clearInterval(iv); };
+    if (!petSleeping) return;
+    void engine.sleepLearn();
+    const iv = setInterval(() => void engine.sleepLearn(), 20000);
+    return () => clearInterval(iv);
   }, [petSleeping]);
 
   /* горячие клавиши для ПК: 1–7 повторяют кнопки под сценой */
@@ -146,7 +140,7 @@ export default function App() {
         {/* ================= СЦЕНА ================= */}
         <div className="relative h-[46dvh] min-h-[330px] sm:h-[50dvh] sm:min-h-[380px] lg:h-auto lg:min-h-0 overflow-hidden border-b lg:border border-sky/10 lg:rounded-[28px]">
           <RoomScene themeId={s.roomTheme} furniture={s.furniture} phase={phase} weather={weather}
-            sleeping={pet.sleeping} cleanliness={pet.stats.cleanliness} dreamLearning={sleepLearning}>
+            sleeping={pet.sleeping} cleanliness={pet.stats.cleanliness}>
             {/* инфо-чипы сцены */}
             <div className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3 flex gap-1.5 sm:gap-2 z-20">
               <span className="chip !text-[11px] backdrop-blur-sm bg-night-900/60"><Icon name={PHASE_ICON[phase]} className="w-3.5 h-3.5 text-butter" />{PHASE_LABEL[phase]}</span>

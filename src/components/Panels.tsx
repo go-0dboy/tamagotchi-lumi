@@ -37,6 +37,7 @@ export default function CarePanel({ state, goScene }: { state: GameState; goScen
 
       {toast && <div className="card-soft px-3 py-2 mb-3 text-[12.5px] font-bold text-mint" style={{ animation: 'toastIn 0.3s ease both' }}>{toast}</div>}
 
+      {/* ---------- кухня ---------- */}
       {tab === 'kitchen' && (
         <div className="space-y-2.5">
           <p className="text-[11.5px] font-bold text-cream/50 leading-snug">
@@ -68,6 +69,7 @@ export default function CarePanel({ state, goScene }: { state: GameState; goScen
         </div>
       )}
 
+      {/* ---------- ритуалы ---------- */}
       {tab === 'quests' && (
         <div className="space-y-2.5">
           <p className="text-[11.5px] font-bold text-cream/50">Ежедневные ритуалы обновляются каждое утро. Выполняйте — {pet.name} обожает традиции.</p>
@@ -121,6 +123,7 @@ export default function CarePanel({ state, goScene }: { state: GameState; goScen
         </div>
       )}
 
+      {/* ---------- гардероб ---------- */}
       {tab === 'wardrobe' && (
         <div className="space-y-3">
           {(['hat', 'scarf', 'glasses', 'wings'] as const).map(slot => {
@@ -164,6 +167,7 @@ export default function CarePanel({ state, goScene }: { state: GameState; goScen
         </div>
       )}
 
+      {/* ---------- лавка ---------- */}
       {tab === 'shop' && (
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
@@ -194,6 +198,7 @@ export default function CarePanel({ state, goScene }: { state: GameState; goScen
         </div>
       )}
 
+      {/* ---------- подарки ---------- */}
       {tab === 'gifts' && (
         <div className="space-y-2.5">
           <p className="text-[11.5px] font-bold text-cream/50">Подарки укрепляют связь и доверие. Находки с прогулок и из снов — здесь же.</p>

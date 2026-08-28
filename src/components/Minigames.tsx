@@ -1,7 +1,11 @@
 /* ============================================================
- * Мини-игры (6): «Звёздная память», «Лови светлячков»,
- * «Эхо-мелодия», «Виселица», «Звёздные пятнашки», «Судоку»
- * (4 сложности, генератор с единственным решением).
+ * Мини-игры (6 штук):
+ *  1. «Звёздная память» — пары (интеллект)
+ *  2. «Лови светлячков» — реакция (спорт)
+ *  3. «Эхо-мелодия» — Simon с нотами (творчество)
+ *  4. «Виселица» — классическое отгадывание по буквам
+ *  5. «Звёздные пятнашки» — головоломка
+ *  6. «Судоку» — 4 сложности, единственное решение
  * ============================================================ */
 import { useEffect, useRef, useState } from 'react';
 import { engine } from '../game/engine';
@@ -328,37 +332,40 @@ function EchoGame({ onBack, petName }: { onBack: () => void; petName: string }) 
   );
 }
 
-/* ================= ВИСЕЛИЦА ================= */
-const LETTERS = 'абвгдежзиклмнопрстуфхцчшщъыьэюя'.split('');
-const MAX_MISTAKES = 7;
+/* ================= ВИСЕЛЬНИК (классика) ================= */
+const ALPHABET = 'абвгдежзиклмнопрстуфхцчшщъыьэюя'.split('');
+const MAX_ERRORS = 7;
 
 function HangmanGame({ onBack, petName }: { onBack: () => void; petName: string }) {
   const [word, setWord] = useState(() => WORDS[Math.floor(Math.random() * WORDS.length)]);
   const [guessed, setGuessed] = useState<Set<string>>(new Set());
-  const [mistakes, setMistakes] = useState(0);
+  const [errors, setErrors] = useState(0);
   const [result, setResult] = useState<'win' | 'lose' | null>(null);
+  const [reward, setReward] = useState(0);
 
-  const restart = () => {
+  const newGame = () => {
     setWord(WORDS[Math.floor(Math.random() * WORDS.length)]);
-    setGuessed(new Set()); setMistakes(0); setResult(null);
+    setGuessed(new Set()); setErrors(0); setResult(null); setReward(0);
   };
 
-  const guess = (l: string) => {
-    if (result || guessed.has(l)) return;
-    const g = new Set(guessed); g.add(l); setGuessed(g);
-    if (word.includes(l)) {
+  const guess = (ch: string) => {
+    if (result || guessed.has(ch)) return;
+    const g = new Set(guessed); g.add(ch);
+    setGuessed(g);
+    if (word.includes(ch)) {
       sfx.tap();
-      if (word.split('').every(ch => g.has(ch))) {
+      const won = word.split('').every(c => g.has(c));
+      if (won) {
         sfx.levelup();
-        const reward = engine.finishMinigame('hangman', Math.max(10, (MAX_MISTAKES - mistakes) * 6 + word.length * 2));
-        void reward;
+        const sc = Math.max(10, (MAX_ERRORS - errors) * 6 + word.length * 2);
+        setReward(engine.finishMinigame('hangman', sc));
         setResult('win');
       }
     } else {
       sfx.sad();
-      const m = mistakes + 1;
-      setMistakes(m);
-      if (m >= MAX_MISTAKES) {
+      const e = errors + 1;
+      setErrors(e);
+      if (e >= MAX_ERRORS) {
         setResult('lose');
         engine.setBubble(`Ох… это было слово «${word}». Запомнил! В следующий раз отгадаем вместе.`);
         engine.save();
@@ -366,21 +373,15 @@ function HangmanGame({ onBack, petName }: { onBack: () => void; petName: string 
     }
   };
 
-  const gallows: React.ReactNode[] = [
+  /* рисунок виселицы: появляется по частям */
+  const parts = [
     <line key="p1" x1="20" y1="150" x2="90" y2="150" />,
     <line key="p2" x1="40" y1="150" x2="40" y2="20" />,
     <line key="p3" x1="40" y1="20" x2="105" y2="20" />,
     <line key="p4" x1="105" y1="20" x2="105" y2="38" />,
     <circle key="p5" cx="105" cy="50" r="12" />,
-    <g key="p6">
-      <line x1="105" y1="62" x2="105" y2="98" />
-      <line x1="105" y1="70" x2="90" y2="84" />
-      <line x1="105" y1="70" x2="120" y2="84" />
-    </g>,
-    <g key="p7">
-      <line x1="105" y1="98" x2="92" y2="118" />
-      <line x1="105" y1="98" x2="118" y2="118" />
-    </g>,
+    <g key="p6"><line x1="105" y1="62" x2="105" y2="98" /><line x1="105" y1="70" x2="90" y2="84" /><line x1="105" y1="70" x2="120" y2="84" /></g>,
+    <g key="p7"><line x1="105" y1="98" x2="92" y2="118" /><line x1="105" y1="98" x2="118" y2="118" /></g>,
   ];
 
   return (
@@ -388,22 +389,20 @@ function HangmanGame({ onBack, petName }: { onBack: () => void; petName: string 
       <div className="flex items-center justify-between mb-3">
         <button className="btn btn-ghost !py-2 !px-3 !text-xs" onClick={onBack}>Назад</button>
         <span className="chip">{petName} загадал слово</span>
-        <span className={`chip ${mistakes >= 5 ? 'text-ember' : 'text-mint'}`}>ошибки: {mistakes}/{MAX_MISTAKES}</span>
+        <span className={`chip ${errors >= 5 ? 'text-ember' : 'text-mint'}`}>ошибки: {errors}/{MAX_ERRORS}</span>
       </div>
 
       <div className="flex items-center gap-3 sm:gap-5">
         <svg viewBox="0 0 140 160" className="w-24 sm:w-32 shrink-0" fill="none" stroke="#8ecae6" strokeWidth="4" strokeLinecap="round">
-          {gallows.slice(0, mistakes)}
+          {parts.slice(0, errors)}
           {result === 'lose' && (
             <g stroke="#ffaec9" strokeWidth="3">
-              <path d="M99 46 l4 4 M103 46 l-4 4" />
-              <path d="M107 46 l4 4 M111 46 l-4 4" />
+              <path d="M99 46 l4 4 M103 46 l-4 4" /><path d="M107 46 l4 4 M111 46 l-4 4" />
             </g>
           )}
           {result === 'win' && (
             <g stroke="#9fe8c9" strokeWidth="3" fill="none">
-              <path d="M98 48 q3 3 6 0" />
-              <path d="M106 48 q3 3 6 0" />
+              <path d="M98 48 q3 3 6 0" /><path d="M106 48 q3 3 6 0" />
             </g>
           )}
         </svg>
@@ -411,39 +410,48 @@ function HangmanGame({ onBack, petName }: { onBack: () => void; petName: string 
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap gap-1.5 justify-center sm:justify-start">
             {word.split('').map((ch, i) => (
-              <span key={i} className={`w-7 h-9 sm:w-8 sm:h-10 rounded-lg border-b-4 flex items-center justify-center font-display font-bold text-lg
-                ${guessed.has(ch) ? 'border-mint text-cream' : result === 'lose' ? 'border-ember text-ember' : 'border-sky/40 text-transparent'}`}>
+              <span key={i}
+                className={`w-7 h-9 sm:w-8 sm:h-10 rounded-lg border-b-4 flex items-center justify-center font-display font-bold text-lg
+                ${guessed.has(ch) || result === 'lose' ? 'border-mint/60 text-cream' : 'border-sky/25 text-transparent'}`}>
                 {guessed.has(ch) || result === 'lose' ? ch : '_'}
               </span>
             ))}
           </div>
-          {result && (
-            <div className="mt-3 text-center anim-pop">
-              <p className={`font-display font-bold ${result === 'win' ? 'text-mint' : 'text-ember'}`}>
-                {result === 'win' ? 'Отгадали!' : `Это было «${word}». Ничего, в словаре ${petName} теперь на одно слово больше!`}
-              </p>
-              <div className="flex gap-2 mt-2 justify-center">
-                <button className="btn btn-sky !py-2 !text-xs" onClick={restart}>Новое слово</button>
-                <button className="btn btn-ghost !py-2 !text-xs" onClick={onBack}>Выйти</button>
-              </div>
-            </div>
-          )}
+          <p className="text-[11px] font-bold text-cream/40 mt-2 text-center sm:text-left">
+            {result === 'lose' ? `Это было «${word}». Ничего, в словаре ${petName} теперь на одно слово больше!`
+              : `${MAX_ERRORS - errors} жизней у ${petName}. Он верит в вас!`}
+          </p>
         </div>
       </div>
 
       {!result && (
         <div className="grid grid-cols-8 sm:grid-cols-11 gap-1 mt-4">
-          {LETTERS.map(l => {
-            const used = guessed.has(l);
-            const hit = used && word.includes(l);
+          {ALPHABET.map(ch => {
+            const used = guessed.has(ch);
+            const hit = used && word.includes(ch);
             return (
-              <button key={l} onClick={() => guess(l)} disabled={used}
-                className={`aspect-square rounded-lg text-[13px] font-extrabold uppercase transition-all active:scale-90
-                  ${used ? (hit ? 'bg-mint/20 text-mint' : 'bg-ember/10 text-ember/60') : 'card-soft hover:border-sky/50'}`}>
-                {l}
+              <button key={ch} onClick={() => guess(ch)} disabled={used}
+                className={`aspect-square rounded-lg text-[13px] font-extrabold uppercase border transition-all active:scale-90
+                ${used ? (hit ? 'border-mint/50 bg-mint/15 text-mint' : 'border-ember/30 bg-ember/10 text-ember/60') : 'card-soft hover:border-sky/50 text-cream/85'}`}>
+                {ch}
               </button>
             );
           })}
+        </div>
+      )}
+
+      {result && (
+        <div className="card-soft p-4 mt-4 text-center anim-pop">
+          <div className={`font-display font-bold text-lg ${result === 'win' ? 'text-mint' : 'text-ember'}`}>
+            {result === 'win' ? `Отгадано: «${word}»!` : `Не угадали… «${word}»`}
+          </div>
+          <p className="text-[12px] font-bold text-cream/60 mt-1">
+            {result === 'win' ? `Награда: +${reward} искр, +интеллект. ${petName} хлопает лапками!` : `${petName} записал слово в блокнотик. Попробуем ещё?`}
+          </p>
+          <div className="flex gap-2 mt-3 justify-center">
+            <button className="btn btn-sky !py-2 !text-xs" onClick={newGame}>Новое слово</button>
+            <button className="btn btn-ghost !py-2 !text-xs" onClick={onBack}>Выйти</button>
+          </div>
         </div>
       )}
     </div>
@@ -519,7 +527,7 @@ function PuzzleGame({ onBack, petName }: { onBack: () => void; petName: string }
   );
 }
 
-/* ================= СУДОКУ ================= */
+/* ================= СУДОКУ (единственное решение) ================= */
 const DIFFS = [
   { id: 'easy', label: 'Лёгкий', holes: 30, reward: 40 },
   { id: 'medium', label: 'Средний', holes: 40, reward: 30 },
@@ -640,7 +648,7 @@ function SudokuGame({ onBack, petName }: { onBack: () => void; petName: string }
     <div className="card p-3.5 sm:p-4 anim-fade-up">
       <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
         <button className="btn btn-ghost !py-2 !px-3 !text-xs" onClick={onBack}>Назад</button>
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-wrap">
           {DIFFS.map(d => (
             <button key={d.id} onClick={() => newGame(d)}
               className={`chip !text-[10px] !py-1.5 transition-all ${d.id === diff.id ? '!border-peach/60 text-peach' : 'hover:border-sky/40'}`}>
@@ -677,7 +685,7 @@ function SudokuGame({ onBack, petName }: { onBack: () => void; petName: string }
           <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-night-950/85 anim-fade">
             <div className="card p-5 text-center max-w-[270px] anim-pop">
               <div className="font-display font-bold text-butter text-lg">Решено! {diff.label}</div>
-              <p className="text-[12px] font-bold text-cream/60 mt-1">Награда: +{result} искр, +интеллект. {petName} в восхищении: «Ты считал быстрее меня!»</p>
+              <p className="text-[12px] font-bold text-cream/60 mt-1">Награда: +{result} искр, +интеллект. {petName} в восхищении!</p>
               <div className="flex gap-2 mt-3 justify-center">
                 <button className="btn btn-butter !py-2 !text-xs" onClick={() => newGame()}>Новое поле</button>
                 <button className="btn btn-ghost !py-2 !text-xs" onClick={onBack}>Выйти</button>
