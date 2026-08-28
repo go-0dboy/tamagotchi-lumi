@@ -108,6 +108,9 @@ html, body {
 .wing-r { animation: wingFlap 2.6s ease-in-out infinite reverse; transform-origin: 10% 20%; transform-box: fill-box; }
 .zzz { position: absolute; font-family: var(--font-display); font-weight: 900; color: var(--color-sky); animation: zzzFloat 3.3s ease-out infinite; pointer-events: none; text-shadow: 0 0 10px rgba(142,202,230,0.6); }
 
+@keyframes dreamCycle { 0% { opacity: 0; transform: scale(0.5) translateY(4px); } 10% { opacity: 1; transform: scale(1) translateY(0); } 25% { opacity: 1; } 33% { opacity: 0; transform: scale(0.5) translateY(-4px); } 100% { opacity: 0; } }
+.dream-icon { position: absolute; animation: dreamCycle 6s ease-in-out infinite; }
+
 /* ---------- компоненты ---------- */
 .card {
   background: linear-gradient(160deg, rgba(36,48,84,0.72), rgba(20,29,53,0.92));
