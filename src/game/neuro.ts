@@ -2,16 +2,15 @@
  * MiniLM — крошечная языковая нейросеть питомца.
  *
  * Архитектура (настоящая, хоть и маленькая):
- *   усреднение эмбеддингов последних K слов  (W1, V×H)
+ *   усреднение эмбеддингов последних K слов  (emb, V×H)
  *     → скрытый слой tanh                    (Wx, H×H)
  *     → softmax-классификатор следующего слова (Wo, H×V)
  *
  * Сеть обучается на всём, что питомец «слышит» и «говорит»:
  * фразы из характера, знания, выученные факты, реплики хозяина,
- * сны и дневник. Словарь РАСТЁТ: каждое новое выученное слово
- * добавляется в него (поэтому счётчик «знает N слов» увеличивается).
- * Хранится отдельно (только веса + словарь), выгружается и
- * загружается как самостоятельная модель.
+ * сны и дневник. Обучение онлайн — каждый разговор делает её
+ * чуть умнее. Хранится отдельно (только веса + словарь),
+ * выгружается и загружается как самостоятельная модель.
  * ============================================================ */
 import { GREETINGS, HUNGRY_LINES, TIRED_LINES, LONELY_LINES, PET_LINES, THANKS_LINES, QUESTIONS_FOR_OWNER, IDLE_THOUGHTS, WORDS } from './speech';
 import { FOODS, SHOP, AFFIRMATIONS, WALK_LOCATIONS } from './content';
@@ -131,6 +130,7 @@ export class MiniLM {
     const b2n = new Float32Array(newV);
     b2n.set(this.b2);
     this.b2 = b2n;
+    // пополняем vocab и индекс
     for (const w of newWords) {
       this.w2i.set(w, this.vocab.length);
       this.vocab.push(w);
@@ -154,18 +154,21 @@ export class MiniLM {
   private forward(ctx: number[]) {
     const H = this.H, V = this.vocab.length;
     const n = Math.max(1, ctx.length);
+    // усреднённый эмбеддинг контекста
     const e = new Float32Array(H);
     for (const w of ctx) {
       const row = w * H;
       for (let i = 0; i < H; i++) e[i] += this.W1[row + i];
     }
     for (let i = 0; i < H; i++) e[i] /= n;
+    // скрытый слой tanh
     const h = new Float32Array(H);
     for (let j = 0; j < H; j++) {
       let s = this.b1[j];
       for (let i = 0; i < H; i++) s += this.Wx[i * H + j] * e[i];
       h[j] = Math.tanh(s);
     }
+    // логиты
     const logits = new Float32Array(V);
     for (let v = 0; v < V; v++) {
       let s = this.b2[v];
@@ -178,11 +181,6 @@ export class MiniLM {
   /* ---------- обучение (SGD, кросс-энтропия) ---------- */
   train(texts: string[], epochs: number, lr: number) {
     if (this.vocab.length <= 2) this.buildVocab(texts);
-    // новые слова из текста расширяют словарь ДО обучения
-    const allWords: string[] = [];
-    for (const t of texts) for (const w of this.tokenize(t)) allWords.push(w);
-    this.growVocab(allWords);
-
     for (let ep = 0; ep < epochs; ep++) {
       for (const text of texts) {
         const ids = this.tokenize(text).map(w => this.id(w)).filter(i => i !== UNK);
@@ -198,14 +196,17 @@ export class MiniLM {
   private step(ctx: number[], target: number, lr: number) {
     const H = this.H, V = this.vocab.length;
     const { e, h, logits } = this.forward(ctx);
+    // softmax
     let mx = -Infinity;
     for (let v = 0; v < V; v++) if (logits[v] > mx) mx = logits[v];
     let sum = 0;
     const p = new Float32Array(V);
     for (let v = 0; v < V; v++) { p[v] = Math.exp(logits[v] - mx); sum += p[v]; }
     for (let v = 0; v < V; v++) p[v] /= sum;
+    // dLogits = p - onehot(target)
     const dL = new Float32Array(V);
     for (let v = 0; v < V; v++) dL[v] = p[v] - (v === target ? 1 : 0);
+    // градиенты Wo, b2; накопление dh
     const dh = new Float32Array(H);
     for (let j = 0; j < H; j++) {
       let s = 0;
@@ -217,8 +218,10 @@ export class MiniLM {
       dh[j] = s;
     }
     for (let v = 0; v < V; v++) this.b2[v] -= lr * dL[v];
+    // через tanh
     const dz = new Float32Array(H);
     for (let j = 0; j < H; j++) dz[j] = dh[j] * (1 - h[j] * h[j]);
+    // градиенты Wx, b1; накопление de
     const de = new Float32Array(H);
     for (let i = 0; i < H; i++) {
       let s = 0;
@@ -229,6 +232,7 @@ export class MiniLM {
       de[i] = s;
     }
     for (let j = 0; j < H; j++) this.b1[j] -= lr * dz[j];
+    // градиенты эмбеддингов контекста (делим на длину)
     const n = Math.max(1, ctx.length);
     for (const w of ctx) {
       const row = w * H;
@@ -236,11 +240,16 @@ export class MiniLM {
     }
   }
 
-  /** дообучиться на одной реплике (онлайн-обучение) */
-  learnLine(text: string) { this.train([text], 2, 0.06); }
+  /** дообучиться на одной реплике (онлайн-обучение).
+   *  Сначала словарь пополняется новыми словами — поэтому счётчик
+   *  «знает N слов» растёт по мере того, как питомец учится. */
+  learnLine(text: string) {
+    this.growVocab(this.tokenize(text));
+    this.train([text], 2, 0.06);
+  }
 
   /* ---------- генерация ---------- */
-  generate(seedWords: string[], maxLen = 14, temp = 0.7): string {
+  generate(seedWords: string[], maxLen = 14, temp = 0.85): string {
     if (!this.ready) return '';
     const known = seedWords.map(w => this.id(w.toLowerCase())).filter(i => i !== UNK && i !== EOS);
     const ctx = known.slice(-this.K);
@@ -261,6 +270,7 @@ export class MiniLM {
 
   private sample(logits: Float32Array, temp: number): number {
     const V = logits.length;
+    // топ-k = 10
     const idx = Array.from({ length: V }, (_, i) => i)
       .filter(i => i !== UNK)
       .sort((a, b) => logits[b] - logits[a])
@@ -324,6 +334,7 @@ export function baseCorpus(): string[] {
     HUNGRY_LINES, TIRED_LINES, LONELY_LINES, PET_LINES, THANKS_LINES,
     QUESTIONS_FOR_OWNER, IDLE_THOUGHTS, AFFIRMATIONS,
   );
+  // разговорные обороты — чтобы сеть сразу «говорила» живо
   push([
     'привет как у тебя дела сегодня',
     'доброе утро солнце уже встало',
@@ -351,11 +362,16 @@ export function baseCorpus(): string[] {
     'отдохни а я посторожу твои сны',
     'вместе нам всё по плечу',
   ]);
+  // любимые слова — как предложения
   for (const w of WORDS) lines.push(`я люблю слово ${w}`, `${w} — чудесное слово`);
+  // еда и вещи
   for (const f of FOODS) lines.push(`я люблю ${f.name}`, `${f.name} очень вкусно пахнет`);
   for (const s of SHOP) lines.push(`мне нравится ${s.name}`);
+  // истории с прогулок
   for (const l of WALK_LOCATIONS) lines.push(...l.stories);
+  // наука: вопрос + правильный ответ
   for (const q of SCIENCE_QUESTIONS) lines.push(`${q.q} — ${q.opts[q.a]}`);
+  // факты
   for (const f of FALLBACK_FACTS) lines.push(`${f.title}. ${f.text}`);
 
   return lines;

@@ -31,7 +31,7 @@ export const QUESTIONS: Question[] = [
   Q('geo', 'Самая большая пустыня?', 'Сахара', ['Гоби', 'Калахари', 'Атакама']),
   Q('geo', 'Какая страна самая большая по площади?', 'Россия', ['Канада', 'Китай', 'США']),
   // ---- Физика ----
-  Q('phys', 'Какая планета третья по счёту от Солнца?', 'Земля', ['Венера', 'Марс', 'Меркурий']),
+  Q('phys', 'С какой планеты третья по счёту от Солнца?', 'Земля', ['Венера', 'Марс', 'Меркурий']),
   Q('phys', 'Что притягивает предметы к Земле?', 'Гравитация', ['Магнетизм', 'Трение', 'Инерция']),
   Q('phys', 'Чему равна скорость света примерно?', '300 000 км/с', ['3 000 км/с', '30 000 км/с', '3 000 000 км/с']),
   Q('phys', 'Из чего состоят все вещества?', 'Из атомов', ['Из света', 'Из тепла', 'Из звука']),
@@ -99,40 +99,6 @@ export async function fetchWikiFact(): Promise<{ title: string; text: string } |
     const extract = String(d.extract).split('\n')[0].slice(0, 320);
     if (!extract) return null;
     return { title: String(d.title), text: extract };
-  } catch {
-    return null;
-  }
-}
-
-/**
- * RAG: найти в Википедии статью по запросу и вернуть короткое резюме.
- * Используется движком, чтобы питомец отвечал по фактам,
- * а не выдумывал (например, на «кто такой Пушкин?»).
- */
-export async function searchWiki(query: string): Promise<{ title: string; text: string } | null> {
-  if (!query.trim()) return null;
-  try {
-    const c1 = new AbortController();
-    const t1 = setTimeout(() => c1.abort(), 6000);
-    const sres = await fetch(
-      `https://ru.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=1&format=json&origin=*`,
-      { signal: c1.signal },
-    );
-    clearTimeout(t1);
-    if (!sres.ok) return null;
-    const sd = await sres.json();
-    const title = sd?.query?.search?.[0]?.title;
-    if (!title || typeof title !== 'string') return null;
-
-    const c2 = new AbortController();
-    const t2 = setTimeout(() => c2.abort(), 6000);
-    const rres = await fetch(`https://ru.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, { signal: c2.signal });
-    clearTimeout(t2);
-    if (!rres.ok) return null;
-    const d = await rres.json();
-    const extract = d?.extract ? String(d.extract).split('\n')[0].slice(0, 420) : '';
-    if (!extract) return null;
-    return { title: String(d.title ?? title), text: extract };
   } catch {
     return null;
   }

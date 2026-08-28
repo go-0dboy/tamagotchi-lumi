@@ -1,6 +1,6 @@
 /* ============================================================
- * Болталка: чат с памятью, игры «Города»/«Ассоциации»,
- * дыхательная практика 4-2-6, фокус-таймер и аффирмации.
+ * Болталка: чат с памятью, дыхательная практика 4-2-6,
+ * фокус-таймер и аффирмации.
  * ============================================================ */
 import { useEffect, useRef, useState } from 'react';
 import type { GameState } from '../game/types';
@@ -15,6 +15,7 @@ export default function ChatPanel({ state }: { state: GameState }) {
   const [breathing, setBreathing] = useState(false);
   const [breathPhase, setBreathPhase] = useState<'in' | 'hold' | 'out'>('in');
   const [cycles, setCycles] = useState(0);
+  const [focusMin, setFocusMin] = useState<number | null>(null);
   const [focusLeft, setFocusLeft] = useState('');
   const [affirmation, setAffirmation] = useState(AFFIRMATIONS[0]);
   const logRef = useRef<HTMLDivElement>(null);
@@ -25,23 +26,13 @@ export default function ChatPanel({ state }: { state: GameState }) {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
   }, [state.chat.length]);
 
-  /* «печатает…»: включаем при отправке, гасим, когда пришёл ответ питомца */
-  const [typing, setTyping] = useState(false);
-  const sentLen = useRef(state.chat.length);
-  useEffect(() => {
-    if (typing && state.chat.length > sentLen.current && state.chat[state.chat.length - 1].from === 'pet') {
-      setTyping(false);
-    }
-  }, [state.chat, typing]);
-
   /* дыхательная практика: вдох 4 — задержка 2 — выдох 6, 4 круга */
   useEffect(() => {
     if (!breathing) return;
     const order: { ph: 'in' | 'hold' | 'out'; ms: number }[] = [
       { ph: 'in', ms: 4000 }, { ph: 'hold', ms: 2000 }, { ph: 'out', ms: 6000 },
     ];
-    let oi = 0, c = 0;
-    let timer: ReturnType<typeof setTimeout>;
+    let oi = 0, c = 0, timer: ReturnType<typeof setTimeout>;
     setBreathPhase('in'); setCycles(0); sfx.chime();
     const loopFn = () => {
       timer = setTimeout(() => {
@@ -67,22 +58,32 @@ export default function ChatPanel({ state }: { state: GameState }) {
 
   /* фокус-таймер */
   useEffect(() => {
-    if (state.focusEndsAt == null) { setFocusLeft(''); return; }
+    if (state.focusEndsAt == null) { setFocusMin(null); setFocusLeft(''); return; }
+    setFocusMin(state.focusMinutes);
     const iv = setInterval(() => {
       const left = (state.focusEndsAt ?? Date.now()) - Date.now();
-      if (left <= 0) { setFocusLeft(''); return; }
+      if (left <= 0) { setFocusMin(null); setFocusLeft(''); return; }
       const m = Math.floor(left / 60000); const s = Math.floor((left % 60000) / 1000);
       setFocusLeft(`${m}:${s.toString().padStart(2, '0')}`);
     }, 500);
     return () => clearInterval(iv);
   }, [state.focusEndsAt, state.focusMinutes]);
 
+  /* «печатает…»: включаем при отправке, гасим, когда пришёл ответ питомца */
+  const [typing, setTyping] = useState(false);
+  const sentLen = useRef(state.chat.length);
+  useEffect(() => {
+    if (typing && state.chat.length > sentLen.current && state.chat[state.chat.length - 1].from === 'pet') {
+      setTyping(false);
+    }
+  }, [state.chat, typing]);
+
   const send = (raw?: string) => {
     const t = (raw ?? text).trim();
-    if (!t || pet.sleeping) return;
+    if (!t) return;
     sentLen.current = state.chat.length;
     setTyping(true);
-    void engine.sendChat(t);
+    engine.sendChat(t);
     setText('');
     sfx.tap();
   };
@@ -91,6 +92,7 @@ export default function ChatPanel({ state }: { state: GameState }) {
 
   return (
     <div className="card p-3.5 sm:p-4 anim-fade-up">
+      {/* дыхательный оверлей */}
       {breathing && (
         <div className="fixed inset-0 z-50 bg-night-950/90 flex flex-col items-center justify-center anim-fade p-4" onClick={() => setBreathing(false)}>
           <p className="font-display text-lg sm:text-xl font-bold text-butter mb-6 sm:mb-10 text-glow text-center">{PHASE_LABEL[breathPhase]}</p>
@@ -117,7 +119,7 @@ export default function ChatPanel({ state }: { state: GameState }) {
             {state.chat.length === 0 && (
               <div className="card-soft p-4 text-center">
                 <p className="text-[12.5px] font-bold text-cream/55 leading-relaxed">
-                  {pet.name} умеет запоминать!<br />
+                  {pet.name} умеет запоминать! Скажите:<br />
                   <span className="text-butter">«меня зовут …»</span> · <span className="text-mint">«я люблю …»</span> · <span className="text-sky">«запомни: …»</span>
                 </p>
               </div>
@@ -142,7 +144,7 @@ export default function ChatPanel({ state }: { state: GameState }) {
             )}
           </div>
 
-          {/* подсказки-вопросы (скрываются во сне) */}
+          {/* быстрые подсказки-вопросы */}
           {!pet.sleeping && (
             <div className="flex gap-1.5 flex-wrap mb-2">
               {['Привет!', 'Как дела?', 'Что делал сегодня?', 'Кто ты?', 'Расскажи факт'].map(q => (
@@ -184,7 +186,7 @@ export default function ChatPanel({ state }: { state: GameState }) {
 
           <div className="card-soft p-4">
             <div className="font-display font-bold text-[13.5px] mb-2 flex items-center gap-2"><Icon name="timer" className="w-4.5 h-4.5 text-sky" />Фокус-таймер</div>
-            {state.focusEndsAt != null ? (
+            {focusMin != null ? (
               <div className="text-center py-2">
                 <div className="font-display font-bold text-3xl text-butter tabular-nums text-glow">{focusLeft || '…'}</div>
                 <p className="text-[11px] font-bold text-cream/45 mt-1">{pet.name} сидит тихо и занимается вместе с вами</p>
