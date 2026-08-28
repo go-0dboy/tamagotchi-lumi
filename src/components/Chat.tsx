@@ -88,7 +88,6 @@ export default function ChatPanel({ state }: { state: GameState }) {
   };
 
   const PHASE_LABEL = { in: 'Вдох… 4 счёта', hold: 'Задержите… 2 счёта', out: 'Выдох… 6 счётов' };
-  const inGame = !!state.dialog.game;
 
   return (
     <div className="card p-3.5 sm:p-4 anim-fade-up">
@@ -118,8 +117,8 @@ export default function ChatPanel({ state }: { state: GameState }) {
             {state.chat.length === 0 && (
               <div className="card-soft p-4 text-center">
                 <p className="text-[12.5px] font-bold text-cream/55 leading-relaxed">
-                  {pet.name} умеет запоминать и играть!<br />
-                  <span className="text-butter">«давай поиграем в города»</span> · <span className="text-mint">«кто такой Пушкин?»</span> · <span className="text-sky">«расскажи сказку»</span>
+                  {pet.name} умеет запоминать!<br />
+                  <span className="text-butter">«меня зовут …»</span> · <span className="text-mint">«я люблю …»</span> · <span className="text-sky">«запомни: …»</span>
                 </p>
               </div>
             )}
@@ -143,22 +142,15 @@ export default function ChatPanel({ state }: { state: GameState }) {
             )}
           </div>
 
-          {/* подсказки-команды (скрываются во время игры и во сне) */}
-          {!pet.sleeping && !inGame && (
+          {/* подсказки-вопросы (скрываются во сне) */}
+          {!pet.sleeping && (
             <div className="flex gap-1.5 flex-wrap mb-2">
-              {['Привет!', 'Давай поиграем в города', 'В ассоциации', 'Расскажи сказку', 'Кто такой Пушкин?'].map(q => (
+              {['Привет!', 'Как дела?', 'Что делал сегодня?', 'Кто ты?', 'Расскажи факт'].map(q => (
                 <button key={q} onClick={() => send(q)}
                   className="chip !text-[10.5px] !py-1.5 hover:border-butter/50 hover:text-butter transition-all active:scale-95">
                   {q}
                 </button>
               ))}
-            </div>
-          )}
-          {inGame && !pet.sleeping && (
-            <div className="flex gap-1.5 flex-wrap mb-2">
-              <button onClick={() => send('хватит')} className="chip !text-[10.5px] !py-1.5 hover:border-ember/50 hover:text-ember transition-all active:scale-95">
-                Закончить игру
-              </button>
             </div>
           )}
 
@@ -171,7 +163,7 @@ export default function ChatPanel({ state }: { state: GameState }) {
             </div>
           ) : (
             <div className="flex gap-2">
-              <input className="input-soft flex-1 min-w-0" placeholder={inGame ? 'Ваш ход…' : `Напишите ${pet.name}…`} value={text}
+              <input className="input-soft flex-1 min-w-0" placeholder={`Напишите ${pet.name}…`} value={text}
                 onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} maxLength={140} />
               <button className="btn btn-butter !px-4" onClick={() => send()} aria-label="Отправить"><Icon name="chat" className="w-5 h-5" /></button>
             </div>

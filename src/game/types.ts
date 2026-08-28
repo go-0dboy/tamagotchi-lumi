@@ -125,10 +125,8 @@ export interface GameState {
   fx: { kind: 'pet' | 'clean' | 'bath'; at: number } | null;
   weatherReal: { kind: string; label: string; temp: number; at: number } | null;
   dialog: {
-    pendingQuestion: 'name' | 'mood' | 'day' | 'favorite' | 'memory' | 'good' | null;
+    pendingQuestion: 'name' | 'mood' | 'day' | 'favorite' | null; // вопрос, который питомец задал и ждёт ответа
     lastIntent: string;
     turn: number;
-    /** активная игра прямо в чате: «Города» или «Ассоциации» */
-    game: { type: 'cities' | 'assoc'; lastWord: string; used: string[]; round: number } | null;
   };
 }

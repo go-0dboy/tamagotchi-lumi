@@ -1,5 +1,6 @@
 /* ============================================================
- * HUD: имя, стадия, уровень, искры, погода и живые полоски.
+ * HUD: шапка (имя, стадия, уровень, искры, погода, настройки)
+ * и живые полоски состояния питомца.
  * ============================================================ */
 import type { Pet } from '../game/types';
 import { stageForAge } from '../game/content';
@@ -18,16 +19,30 @@ interface Props {
   pet: Pet;
   coins: number;
   weather: { kind: string; label: string };
+  soundOn: boolean;
+  onToggleSound: () => void;
+  onOpenSettings: () => void;
 }
 
-export default function HUD({ pet, coins, weather }: Props) {
+export default function HUD({ pet, coins, weather, soundOn, onToggleSound, onOpenSettings }: Props) {
   const ageDays = Math.max(0, Math.floor((Date.now() - pet.growth.bornAt) / 86400000));
   const stage = stageForAge(ageDays);
   const xpNeed = 80 + pet.growth.level * 40;
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-1.5 flex-wrap">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-display text-lg font-bold tracking-tight text-butter text-glow">Люмос</span>
+        <div className="flex gap-1.5">
+          <button className="btn btn-ghost !p-2.5" onClick={onToggleSound} aria-label="Звук">
+            <Icon name={soundOn ? 'soundOn' : 'soundOff'} className="w-5 h-5" />
+          </button>
+          <button className="btn btn-ghost !p-2.5" onClick={onOpenSettings} aria-label="Настройки">
+            <Icon name="gear" className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 flex-wrap -mt-1.5">
         <span className="chip text-cream/85">{pet.name}</span>
         <span className="chip" style={{ color: '#c8b6ff' }}>{stage.label} · {ageDays} дн</span>
         {pet.evolutionTraits.length > 0 && (
