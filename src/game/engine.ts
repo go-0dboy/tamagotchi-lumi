@@ -9,7 +9,7 @@ import { FOODS, SHOP, KEEPSAKES, QUEST_POOL, SKILLS, TRAIT_THRESHOLD } from './c
 import { makeDreamText, dreamGiftId, makeDiaryText, MOOD_WORDS, OFFLINE_EVENTS, chatBrain, welcomeLine, WORDS } from './speech';
 import { sfx, setSoundEnabled } from './sound';
 import { MiniLM, baseCorpus } from './neuro';
-import { FALLBACK_FACTS } from './knowledge';
+import { FALLBACK_FACTS, fetchWikiFact } from './knowledge';
 
 const KEY = 'lumos.save.v1';
 const BRAIN_KEY = 'lumos.brain.v1';
@@ -262,6 +262,29 @@ class Engine {
       if (t) return Math.random() < 0.5 ? `Я тут вспомнил: ${t.charAt(0).toLowerCase() + t.slice(1)}.` : `Знаешь, о чём я думаю? ${t}`;
     }
     return null;
+  }
+
+  /**
+   * Самообучение во сне: пока питомец спит и есть интернет,
+   * нейросеть читает случайную статью Википедии (книги, культура,
+   * наука) и дообучается на ней. Словарь и счётчик слов растут.
+   * Возвращает true, если удалось что-то выучить (для анимации сна).
+   */
+  async sleepLearn(): Promise<boolean> {
+    const p = this.state.pet;
+    if (!p || !p.sleeping || p.transcended) return false;
+    if (!this.lm) return false;
+    const fact = await fetchWikiFact();
+    if (!fact) return false; // нет интернета — тихо пропускаем
+    this.lm.learnLine(fact.title);
+    this.lm.learnLine(fact.text);
+    // изредка фиксируем выученное как знание питомца
+    if (Math.random() < 0.5) {
+      p.knowledge = [...new Set([...p.knowledge, 'fact:' + fact.title])].slice(-300);
+    }
+    this.brainDirty = true;
+    this.save();
+    return true;
   }
 
   tick() {

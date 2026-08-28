@@ -18,7 +18,8 @@ import { QUESTIONS as SCIENCE_QUESTIONS, FALLBACK_FACTS } from './knowledge';
 
 const UNK = 0; // <unk>
 const EOS = 1; // </s>
-const MAX_VOCAB = 300;
+const MAX_VOCAB = 300;        // стартовый словарь при рождении
+const MAX_ONLINE_VOCAB = 600; // предел роста словаря при онлайн-обучении
 
 export interface BrainData {
   v: 1;
@@ -93,6 +94,47 @@ export class MiniLM {
     for (let i = 0; i < this.W1.length; i++) this.W1[i] = rnd();
     for (let i = 0; i < this.Wx.length; i++) this.Wx[i] = rnd();
     for (let i = 0; i < this.Wo.length; i++) this.Wo[i] = rnd();
+  }
+
+  /**
+   * Динамически расширяет словарь новыми словами (до MAX_ONLINE_VOCAB).
+   * Именно благодаря этому методу счётчик «знает N слов» растёт:
+   * каждое новое выученное слово добавляется в словарь, а веса
+   * W1 (строки-эмбеддинги) и Wo (столбцы) достраиваются.
+   */
+  private growVocab(words: string[]) {
+    const H = this.H;
+    const oldV = this.vocab.length;
+    if (oldV >= MAX_ONLINE_VOCAB) return;
+    const rnd = () => (Math.random() - 0.5) * 0.2;
+    const newWords: string[] = [];
+    for (const w of words) {
+      if (newWords.length + oldV >= MAX_ONLINE_VOCAB) break;
+      if (w.length > 1 && !this.w2i.has(w)) newWords.push(w);
+    }
+    if (!newWords.length) return;
+    const newV = oldV + newWords.length;
+    // W1 (V×H): достраиваем новые строки-эмбеддинги
+    const W1n = new Float32Array(newV * H);
+    W1n.set(this.W1);
+    for (let i = oldV * H; i < newV * H; i++) W1n[i] = rnd();
+    this.W1 = W1n;
+    // Wo (H×V): пересобираем, добавляя по столбцу на каждое новое слово
+    const Won = new Float32Array(H * newV);
+    for (let j = 0; j < H; j++) {
+      for (let v = 0; v < oldV; v++) Won[j * newV + v] = this.Wo[j * oldV + v];
+      for (let v = oldV; v < newV; v++) Won[j * newV + v] = rnd();
+    }
+    this.Wo = Won;
+    // b2 (V): достраиваем
+    const b2n = new Float32Array(newV);
+    b2n.set(this.b2);
+    this.b2 = b2n;
+    // пополняем vocab и индекс
+    for (const w of newWords) {
+      this.w2i.set(w, this.vocab.length);
+      this.vocab.push(w);
+    }
   }
 
   tokenize(text: string): string[] {
@@ -198,8 +240,13 @@ export class MiniLM {
     }
   }
 
-  /** дообучиться на одной реплике (онлайн-обучение) */
-  learnLine(text: string) { this.train([text], 2, 0.06); }
+  /** дообучиться на одной реплике (онлайн-обучение).
+   *  Сначала словарь пополняется новыми словами — поэтому счётчик
+   *  «знает N слов» растёт по мере того, как питомец учится. */
+  learnLine(text: string) {
+    this.growVocab(this.tokenize(text));
+    this.train([text], 2, 0.06);
+  }
 
   /* ---------- генерация ---------- */
   generate(seedWords: string[], maxLen = 14, temp = 0.85): string {

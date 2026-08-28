@@ -16,6 +16,7 @@ interface Props {
   weather: { kind: string; label: string };
   sleeping?: boolean;
   cleanliness?: number;
+  dreamLearning?: boolean; // нейросеть обучается во сне (есть интернет)
   children?: React.ReactNode;
 }
 
@@ -26,7 +27,7 @@ const SKY: Record<string, string> = {
   night: 'linear-gradient(180deg, #0d1530 0%, #1c2a52 60%, #33406b 100%)',
 };
 
-export default function RoomScene({ themeId, furniture, phase, weather, sleeping = false, cleanliness = 100, children }: Props) {
+export default function RoomScene({ themeId, furniture, phase, weather, sleeping = false, cleanliness = 100, dreamLearning = false, children }: Props) {
   const theme = ROOM_THEMES.find(t => t.id === themeId) ?? ROOM_THEMES[0];
   const has = (id: string) => furniture.includes(id);
   const seed = useMemo(() => mulberry32(new Date().getDate() * 97 + new Date().getMonth() * 31), []);
@@ -219,7 +220,7 @@ export default function RoomScene({ themeId, furniture, phase, weather, sleeping
         style={{ left: '50%', bottom: '6%', width: '52%', maxWidth: 440, aspectRatio: '2.4', transform: 'translateX(-50%)', background: 'radial-gradient(ellipse at center, rgba(255,217,142,0.14) 0%, transparent 70%)', opacity: sleeping ? 1 : 0 }} />
       {sleeping && (
         <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none anim-float" style={{ bottom: '58%', zIndex: 15 }}>
-          <DreamCloud />
+          <DreamCloud learning={dreamLearning} />
         </div>
       )}
 
@@ -228,8 +229,10 @@ export default function RoomScene({ themeId, furniture, phase, weather, sleeping
   );
 }
 
-/* облачко, в котором по очереди проявляются образы сна */
-function DreamCloud() {
+/* облачко, в котором по очереди проявляются образы сна.
+   Когда learning=true — нейросеть читает Википедию: в облачке
+   пульсирует значок мозга, показывая, что питомец учится во сне. */
+function DreamCloud({ learning }: { learning: boolean }) {
   return (
     <div className="relative w-[120px] h-[64px]">
       <svg viewBox="0 0 120 64" className="absolute inset-0 w-full h-full drop-shadow-lg">
@@ -240,10 +243,28 @@ function DreamCloud() {
         <ellipse cx="12" cy="62" rx="5" ry="3.5" fill="rgba(255,243,226,0.35)" />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center text-butter" style={{ paddingBottom: 8 }}>
-        <span className="dream-icon" style={{ animationDelay: '0s' }}><Icon name="star" className="w-5 h-5" /></span>
-        <span className="dream-icon absolute" style={{ animationDelay: '2s' }}><Icon name="moon" className="w-5 h-5" /></span>
-        <span className="dream-icon absolute" style={{ animationDelay: '4s' }}><Icon name="spark" className="w-5 h-5" /></span>
+        {learning ? (
+          <span className="flex items-center gap-1.5">
+            <span style={{ animation: 'pulseSoft 1.6s ease-in-out infinite' }}><Icon name="brain" className="w-6 h-6 text-lilac" /></span>
+            <span className="dream-icon" style={{ animationDelay: '0s' }}><Icon name="star" className="w-4 h-4" /></span>
+          </span>
+        ) : (
+          <>
+            <span className="dream-icon" style={{ animationDelay: '0s' }}><Icon name="star" className="w-5 h-5" /></span>
+            <span className="dream-icon absolute" style={{ animationDelay: '2s' }}><Icon name="moon" className="w-5 h-5" /></span>
+            <span className="dream-icon absolute" style={{ animationDelay: '4s' }}><Icon name="spark" className="w-5 h-5" /></span>
+          </>
+        )}
       </div>
+      {/* подписанный индикатор обучения */}
+      {learning && (
+        <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-1 whitespace-nowrap"
+          style={{ animation: 'fadeIn 0.6s ease both' }}>
+          <span className="text-[9px] font-black text-lilac tracking-wide" style={{ textShadow: '0 0 8px rgba(200,182,255,0.5)' }}>
+            учится во сне…
+          </span>
+        </div>
+      )}
     </div>
   );
 }
