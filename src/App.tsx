@@ -55,8 +55,6 @@ function Game() {
       if (!engine.state.settings.reminders) return;
       const p = engine.state.pet;
       if (p && !p.sleeping && !p.transcended && !document.hidden) {
-        // сначала — «умная» реплика от нейросети (погода, факты, воспоминания),
-        // если её нет — обычная проактивная фраза
         const line = engine.smartProactive() ?? proactiveLine(engine.state);
         engine.setBubble(line);
         engine.save();
@@ -66,7 +64,6 @@ function Game() {
     const onUnload = () => engine.save();
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('beforeunload', onUnload);
-    // реальная погода по городу игрока — при старте и каждые 30 минут
     void engine.refreshWeather();
     const weatherInt = setInterval(() => void engine.refreshWeather(), 30 * 60000);
     return () => {
