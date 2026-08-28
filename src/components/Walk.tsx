@@ -39,16 +39,15 @@ export default function Walk({ onClose }: { onClose: () => void }) {
   }, [step, loc]);
 
   const city = engine.state.owner.city?.trim();
-  const locs: WalkLoc[] = city
-    ? [...WALK_LOCATIONS, {
-        id: 'city', icon: 'star', name: `Улицы ${city}`,
-        stories: [
-          `Мы гуляли по улицам ${city}! Я запомнил дорогу домой, на всякий случай. Вдруг ты забудешь, а я — нет.`,
-          `В ${city} сегодня особенно красиво пахло вечером. Мы обошли три квартала и помахали всем знакомым фонарям.`,
-          `Мы нашли в ${city} уютный дворик, где коты греются на подоконниках. Теперь у меня там есть друзья по переписке взглядами.`,
-        ],
-      }]
-    : [...WALK_LOCATIONS];
+  const cityLoc: WalkLoc | null = city ? {
+    id: 'city', icon: 'star', name: `Улицы ${city}`,
+    stories: [
+      `Мы гуляли по улицам ${city}! Я запомнил дорогу домой, на всякий случай. Вдруг ты забудешь, а я — нет.`,
+      `В ${city} сегодня особенно красиво пахло вечером. Мы обошли три квартала и помахали всем знакомым фонарям.`,
+      `Мы нашли в ${city} уютный дворик, где коты греются на подоконниках. Теперь у меня там есть друзья по переписке взглядами.`,
+    ],
+  } : null;
+  const locs: WalkLoc[] = [...WALK_LOCATIONS];
 
   return (
     <div className="fixed inset-0 z-50 flex p-4 bg-night-950/90 anim-fade overflow-y-auto" onClick={step === 'result' ? onClose : undefined}>
@@ -71,6 +70,21 @@ export default function Walk({ onClose }: { onClose: () => void }) {
               </button>
             ))}
           </div>
+
+          {/* «Улицы города» — растянутая кнопка, как «Случайный факт» в учёбе */}
+          {cityLoc && (
+            <button onClick={() => go(cityLoc)}
+              className="w-full mt-3 card-soft p-3.5 text-left flex items-center gap-3 hover:border-peach/50 active:scale-[0.98] transition-all group">
+              <span className="w-10 h-10 rounded-2xl flex items-center justify-center text-peach shrink-0 group-hover:scale-110 transition-transform"
+                style={{ background: 'rgba(255,180,155,0.12)' }}>
+                <Icon name={cityLoc.icon} className="w-5 h-5" />
+              </span>
+              <span>
+                <span className="font-display font-bold text-[13px] block">{cityLoc.name}</span>
+                <span className="text-[10.5px] font-bold text-cream/45">Прогуляемся по твоему городу — своя дорога и история</span>
+              </span>
+            </button>
+          )}
         </div>
       )}
 

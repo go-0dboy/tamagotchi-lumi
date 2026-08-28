@@ -38,6 +38,7 @@ function Game() {
   const [showLearning, setShowLearning] = useState(false);
   const [showWalk, setShowWalk] = useState(false);
   const [squishAt, setSquishAt] = useState(0);
+  const [sleepLearning, setSleepLearning] = useState(false);
   const [, force] = useState(0);
 
   const seasonal = useMemo(() => getWeather(), []);
@@ -55,8 +56,6 @@ function Game() {
       if (!engine.state.settings.reminders) return;
       const p = engine.state.pet;
       if (p && !p.sleeping && !p.transcended && !document.hidden) {
-        // сначала — «умная» реплика от нейросети (погода, факты, воспоминания),
-        // если её нет — обычная проактивная фраза
         const line = engine.smartProactive() ?? proactiveLine(engine.state);
         engine.setBubble(line);
         engine.save();
@@ -66,7 +65,6 @@ function Game() {
     const onUnload = () => engine.save();
     document.addEventListener('visibilitychange', onHide);
     window.addEventListener('beforeunload', onUnload);
-    // реальная погода по городу игрока — при старте и каждые 30 минут
     void engine.refreshWeather();
     const weatherInt = setInterval(() => void engine.refreshWeather(), 30 * 60000);
     return () => {
@@ -94,6 +92,21 @@ function Game() {
     const t = setTimeout(() => engine.clearBubble(), 5000);
     return () => clearTimeout(t);
   }, [s.bubble]);
+
+  /* самообучение нейросети во сне: пока питомец спит, каждые 20 с
+     читаем статью из Википедии и дообучаем мозг (нужен интернет) */
+  const petSleeping = !!s.pet?.sleeping && !s.pet.transcended;
+  useEffect(() => {
+    if (!petSleeping) { setSleepLearning(false); return; }
+    let alive = true;
+    const learn = async () => {
+      const ok = await engine.sleepLearn();
+      if (alive) setSleepLearning(ok);
+    };
+    void learn();
+    const iv = setInterval(() => void learn(), 20000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [petSleeping]);
 
   /* горячие клавиши для ПК: 1–7 повторяют кнопки под сценой */
   useEffect(() => {
@@ -155,7 +168,7 @@ function Game() {
         {/* ================= СЦЕНА ================= */}
         <div className="relative h-[46dvh] min-h-[330px] sm:h-[50dvh] sm:min-h-[380px] lg:h-full lg:min-h-0 overflow-hidden border-b lg:border border-sky/10 lg:rounded-[28px]">
           <RoomScene themeId={s.roomTheme} furniture={s.furniture} phase={phase} weather={weather}
-            sleeping={pet.sleeping} cleanliness={pet.stats.cleanliness}>
+            sleeping={pet.sleeping} cleanliness={pet.stats.cleanliness} dreamLearning={sleepLearning}>
             {/* инфо-чипы сцены */}
             <div className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3 flex gap-1.5 sm:gap-2 z-20">
               <span className="chip !text-[11px] backdrop-blur-sm bg-night-900/60"><Icon name={PHASE_ICON[phase]} className="w-3.5 h-3.5 text-butter" />{PHASE_LABEL[phase]}</span>

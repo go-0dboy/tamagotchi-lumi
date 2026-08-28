@@ -145,20 +145,31 @@ export default function ChatPanel({ state }: { state: GameState }) {
           </div>
 
           {/* быстрые подсказки-вопросы */}
-          <div className="flex gap-1.5 flex-wrap mb-2">
-            {['Привет!', 'Как дела?', 'Что делал сегодня?', 'Кто ты?', 'Расскажи факт'].map(q => (
-              <button key={q} onClick={() => send(q)}
-                className="chip !text-[10.5px] !py-1.5 hover:border-butter/50 hover:text-butter transition-all active:scale-95">
-                {q}
-              </button>
-            ))}
-          </div>
+          {!pet.sleeping && (
+            <div className="flex gap-1.5 flex-wrap mb-2">
+              {['Привет!', 'Как дела?', 'Что делал сегодня?', 'Кто ты?', 'Расскажи факт'].map(q => (
+                <button key={q} onClick={() => send(q)}
+                  className="chip !text-[10.5px] !py-1.5 hover:border-butter/50 hover:text-butter transition-all active:scale-95">
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
 
-          <div className="flex gap-2">
-            <input className="input-soft flex-1 min-w-0" placeholder={`Напишите ${pet.name}…`} value={text}
-              onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} maxLength={140} />
-            <button className="btn btn-butter !px-4" onClick={() => send()} aria-label="Отправить"><Icon name="chat" className="w-5 h-5" /></button>
-          </div>
+          {pet.sleeping ? (
+            <div className="flex items-center gap-2.5 card-soft px-3.5 py-3 text-sky/80">
+              <Icon name="sleep" className="w-5 h-5 shrink-0" />
+              <span className="text-[12.5px] font-bold leading-snug">
+                {pet.name} спит и видит сны… Разбудите его, чтобы поболтать.
+              </span>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input className="input-soft flex-1 min-w-0" placeholder={`Напишите ${pet.name}…`} value={text}
+                onChange={e => setText(e.target.value)} onKeyDown={e => e.key === 'Enter' && send()} maxLength={140} />
+              <button className="btn btn-butter !px-4" onClick={() => send()} aria-label="Отправить"><Icon name="chat" className="w-5 h-5" /></button>
+            </div>
+          )}
         </>
       ) : (
         <div className="space-y-3">
