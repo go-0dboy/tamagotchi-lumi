@@ -148,7 +148,7 @@ export function chatBrain(text: string, state: GameState): BrainResult {
     if (c.play) parts.push('мы играли');
     if (c.walk) parts.push('мы гуляли');
     if (c.study) parts.push('я учился');
-    const did = parts.length ? `Сегодня ${parts.join(', ')}.` : 'Сегодня я mostly мечтал и пересчитывал пылинки.';
+    const did = parts.length ? `Сегодня ${parts.join(', ')}.` : 'Сегодня я в основном мечтал и пересчитывал пылинки.';
     const dream = state.dreams[0] ? ` А ещё мне снился сон: ${state.dreams[0].text.toLowerCase()}` : '';
     return { lines: [did + dream, R(QUESTIONS_FOR_OWNER)], pendingQuestion: null };
   }
