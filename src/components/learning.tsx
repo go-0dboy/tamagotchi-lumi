@@ -10,12 +10,12 @@ import PetSprite from './PetSprite';
 import Icon from './icons';
 
 /* ---------- общая широкая карточка-кнопка ---------- */
-export function WideCardButton({ icon, tint, title, subtitle, onClick }: {
-  icon: string; tint: string; title: string; subtitle: string; onClick: () => void;
+export function WideCardButton({ icon, tint, title, subtitle, cta = 'walk', onClick }: {
+  icon: string; tint: string; title: string; subtitle: string; cta?: string; onClick: () => void;
 }) {
   return (
     <button onClick={onClick}
-      className="w-full card-soft p-4 text-left flex items-center gap-3.5 transition-all hover:-translate-y-0.5 active:scale-[0.98] group">
+      className="w-full card-soft p-4 text-left flex items-center gap-3.5 transition-all hover:-translate-y-0.5 hover:border-sky/30 active:scale-[0.98] group">
       <span className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform"
         style={{ background: `${tint}1f`, color: tint }}>
         <Icon name={icon} className="w-6 h-6" />
@@ -24,7 +24,7 @@ export function WideCardButton({ icon, tint, title, subtitle, onClick }: {
         <span className="font-display font-bold text-[14px] block leading-tight">{title}</span>
         <span className="text-[11px] font-bold text-cream/45 block leading-snug mt-0.5">{subtitle}</span>
       </span>
-      <Icon name="walk" className="w-5 h-5 text-cream/30 group-hover:text-cream/60 group-hover:translate-x-0.5 transition-all shrink-0" />
+      <Icon name={cta} className="w-5 h-5 text-cream/30 group-hover:text-cream/60 group-hover:translate-x-0.5 transition-all shrink-0" />
     </button>
   );
 }
@@ -83,7 +83,7 @@ export function Learning({ onClose }: { onClose: () => void }) {
               ))}
             </div>
             {/* случайный факт — широкая карточка */}
-            <WideCardButton icon="spark" tint="#ffd98e" title="Случайный факт"
+            <WideCardButton icon="spark" tint="#ffd98e" cta="chat" title="Случайный факт"
               subtitle="Маленькое открытие из энциклопедии — расскажу хозяину"
               onClick={() => { setFact(engine.randomFact()); sfx.sparkle(); }} />
             {fact && (
@@ -165,7 +165,8 @@ export function Walk({ onClose }: { onClose: () => void }) {
             <h3 className="font-display text-lg font-bold text-butter">Куда пойдём?</h3>
             <button className="btn btn-ghost !p-2" onClick={onClose} aria-label="Закрыть"><Icon name="close" className="w-5 h-5" /></button>
           </div>
-          <p className="text-[12px] font-bold text-cream/50 mb-4">Прогулка бодрит, приносит искры и впечатления. Нужна энергия (12+).</p>
+          <div className="space-y-3">
+          <p className="text-[12px] font-bold text-cream/50">Прогулка бодрит, приносит искры и впечатления. Нужна энергия (12+).</p>
           <div className="grid grid-cols-2 gap-2.5">
             {WALK_LOCATIONS.map(l => (
               <button key={l.id} onClick={() => go(l)}
@@ -175,23 +176,22 @@ export function Walk({ onClose }: { onClose: () => void }) {
               </button>
             ))}
           </div>
-          {/* «Улицы города» — растягивается на всю ширину, как «Случайный факт» в учёбе */}
-          <div className="mt-2.5">
-            <WideCardButton icon="star" tint="#ffaec9"
-              title={city ? `Улицы ${city}` : 'Улицы города'}
-              subtitle={city ? `Прогуляемся по твоему городу — ${city}` : 'Укажите город в настройках — и пойдём по его улицам'}
-              onClick={() => go({
-                id: 'city', icon: 'star', tint: '#ffaec9',
-                name: city ? `Улицы ${city}` : 'Улицы города',
-                stories: city ? [
-                  `Мы гуляли по улицам ${city}! Я запомнил дорогу домой, на всякий случай.`,
-                  `В ${city} сегодня особенно красиво пахло вечером. Обошли три квартала.`,
-                  `Нашли в ${city} уютный дворик, где коты греются на подоконниках.`,
-                ] : [
-                  'Мы гуляли по незнакомым улицам и придумывали им имена.',
-                  'Город шумел, а мы нашли самый тихий переулок.',
-                ],
-              })} />
+          {/* «Улицы города» — та же широкая карточка WideCardButton, что и «Случайный факт» в учёбе */}
+          <WideCardButton icon="star" tint="#ffaec9"
+            title={city ? `Улицы ${city}` : 'Улицы города'}
+            subtitle={city ? `Прогуляемся по твоему городу — ${city}` : 'Укажите город в настройках — и пойдём по его улицам'}
+            onClick={() => go({
+              id: 'city', icon: 'star', tint: '#ffaec9',
+              name: city ? `Улицы ${city}` : 'Улицы города',
+              stories: city ? [
+                `Мы гуляли по улицам ${city}! Я запомнил дорогу домой, на всякий случай.`,
+                `В ${city} сегодня особенно красиво пахло вечером. Обошли три квартала.`,
+                `Нашли в ${city} уютный дворик, где коты греются на подоконниках.`,
+              ] : [
+                'Мы гуляли по незнакомым улицам и придумывали им имена.',
+                'Город шумел, а мы нашли самый тихий переулок.',
+              ],
+            })} />
           </div>
         </div>
       )}
