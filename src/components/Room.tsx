@@ -1,25 +1,13 @@
 /* ============================================================
- * Комната: стена, окно с небом по времени суток и погодой,
- * пол, мебель из лавки, светлячки/пылинки, грязь при низкой
- * чистоте, затемнение и облако снов во время сна.
+ * Комната питомца: окно с реальной погодой и временем суток,
+ * кровать, гирлянда, картина, мебель, амбиентные частицы.
+ * Геометрия окна привязана к высоте сцены (clamp) — на любых
+ * пропорциях экрана окно остаётся на стене, а не на полу.
  * ============================================================ */
 import { useMemo } from 'react';
-import { mulberry32 } from '../game/core';
+import { ROOM_THEMES } from '../game/content';
+import { mulberry32 } from '../game/dna';
 import Icon from './icons';
-
-const THEMES = [
-  { id: 'dusk', wall: '#253258', wallDeep: '#1a2544', floor: '#3a2f52', floorDeep: '#2b2140' },
-  { id: 'meadow', wall: '#2e4a43', wallDeep: '#22382f', floor: '#4a3f2e', floorDeep: '#372f22' },
-  { id: 'rose', wall: '#4a2f45', wallDeep: '#372335', floor: '#3a2f52', floorDeep: '#2b2140' },
-  { id: 'sea', wall: '#23435c', wallDeep: '#1a3246', floor: '#3c4a3a', floorDeep: '#2d382c' },
-];
-
-const SKY: Record<string, string> = {
-  morning: 'linear-gradient(180deg,#ffd9a0 0%,#ffb49b 55%,#c8b6ff 100%)',
-  day: 'linear-gradient(180deg,#8ecae6 0%,#bfe3f5 100%)',
-  evening: 'linear-gradient(180deg,#5a3a6e 0%,#ff8f7d 60%,#ffd98e 100%)',
-  night: 'linear-gradient(180deg,#0c1220 0%,#253258 100%)',
-};
 
 interface Props {
   themeId: string;
@@ -31,79 +19,168 @@ interface Props {
   children?: React.ReactNode;
 }
 
+const SKY: Record<string, string> = {
+  morning: 'linear-gradient(180deg, #ffd9a8 0%, #ffe9c9 40%, #bfe3f2 100%)',
+  day: 'linear-gradient(180deg, #9fd8f0 0%, #c8ecfa 70%, #eaf7fd 100%)',
+  evening: 'linear-gradient(180deg, #ff9e7d 0%, #e8847f 45%, #6d5a8f 100%)',
+  night: 'linear-gradient(180deg, #0d1530 0%, #1c2a52 60%, #33406b 100%)',
+};
+
 export default function RoomScene({ themeId, furniture, phase, weather, sleeping = false, cleanliness = 100, children }: Props) {
-  const theme = THEMES.find(t => t.id === themeId) ?? THEMES[0];
+  const theme = ROOM_THEMES.find(t => t.id === themeId) ?? ROOM_THEMES[0];
   const has = (id: string) => furniture.includes(id);
   const seed = useMemo(() => mulberry32(new Date().getDate() * 97 + new Date().getMonth() * 31), []);
-  const night = phase === 'night';
+  const fireflies = useMemo(() => Array.from({ length: 10 }, () => ({ left: seed() * 92 + 4, top: seed() * 70 + 18, delay: seed() * 4, dur: 5 + seed() * 4 })), [seed]);
+  const motes = useMemo(() => Array.from({ length: 8 }, () => ({ left: seed() * 92 + 4, top: seed() * 60 + 10, delay: seed() * 6, dur: 8 + seed() * 6 })), [seed]);
+  const stars = useMemo(() => Array.from({ length: 14 }, () => ({ left: seed() * 88 + 6, top: seed() * 70 + 6, delay: seed() * 3, r: 1 + seed() * 1.6 })), [seed]);
+  const rainDrops = useMemo(() => Array.from({ length: 16 }, () => ({ left: seed() * 96 + 2, delay: seed() * 1.4, dur: 0.8 + seed() * 0.6 })), [seed]);
+  const snow = useMemo(() => Array.from({ length: 18 }, () => ({ left: seed() * 96 + 2, delay: seed() * 4, dur: 2.6 + seed() * 2 })), [seed]);
+  /* пятна грязи на полу — чем ниже чистота, тем заметнее */
+  const grime = useMemo(() => Array.from({ length: 10 }, () => ({ left: seed() * 88 + 6, bottom: seed() * 22 + 4, rx: 10 + seed() * 16, ry: 3.5 + seed() * 4, tilt: seed() * 40 - 20 })), [seed]);
+
+  const nightish = phase === 'night' || phase === 'evening';
   const dirty = cleanliness < 55;
   const grimy = cleanliness < 32;
-  const grime = useMemo(() => Array.from({ length: 10 }, () => ({
-    left: 8 + seed() * 84, bottom: 3 + seed() * 26, rx: 6 + seed() * 14, ry: 3 + seed() * 6, tilt: seed() * 40 - 20,
-  })), [seed]);
-
-  const drops = useMemo(() => Array.from({ length: weather.kind === 'rain' ? 40 : weather.kind === 'snow' ? 30 : 0 }, () => ({
-    left: Math.random() * 100, delay: Math.random() * 3, dur: weather.kind === 'rain' ? 0.9 + Math.random() * 0.6 : 4 + Math.random() * 4, size: weather.kind === 'rain' ? 2 : 3 + Math.random() * 3,
-  })), [weather.kind]);
-
-  const fireflies = useMemo(() => Array.from({ length: night ? 12 : 0 }, () => ({
-    left: 5 + Math.random() * 90, top: 15 + Math.random() * 60, delay: Math.random() * 4, dur: 4 + Math.random() * 5,
-  })), [night]);
-
-  const dust = useMemo(() => Array.from({ length: night ? 0 : 14 }, () => ({
-    left: Math.random() * 100, top: 10 + Math.random() * 70, delay: Math.random() * 6, dur: 8 + Math.random() * 8,
-  })), [night]);
-
-  const stars = useMemo(() => Array.from({ length: night ? 14 : 0 }, () => ({
-    left: 8 + seed() * 84, top: 8 + seed() * 55, s: 1.5 + seed() * 2.5, delay: seed() * 3,
-  })), [night, seed]);
 
   return (
     <div className="absolute inset-0 overflow-hidden" style={{ background: `linear-gradient(180deg, ${theme.wall} 0%, ${theme.wallDeep} 62%, ${theme.floor} 62%, ${theme.floorDeep} 100%)` }}>
-      {/* стена: обои в горошек */}
-      <svg className="absolute inset-x-0 top-0 w-full opacity-[0.08] pointer-events-none" style={{ height: '62%' }} preserveAspectRatio="none" viewBox="0 0 100 62">
-        {Array.from({ length: 40 }, (_, i) => <circle key={i} cx={(i * 13) % 100} cy={(i * 17) % 62} r="1.2" fill="#fff3e2" />)}
+      {/* обои: мягкий горошек */}
+      <svg className="absolute inset-x-0 top-0 w-full opacity-[0.12] pointer-events-none" height="62%" preserveAspectRatio="none" viewBox="0 0 100 62">
+        {[8, 26, 44, 62, 80].map(x => <circle key={`a${x}`} cx={x} cy={12} r={2.6} fill="#fff3e2" />)}
+        {[17, 35, 53, 71, 89].map(x => <circle key={`b${x}`} cx={x} cy={30} r={2} fill="#fff3e2" />)}
+        {[8, 26, 44, 62, 80].map(x => <circle key={`c${x}`} cx={x} cy={48} r={2.2} fill="#fff3e2" />)}
       </svg>
 
-      {/* окно */}
-      <div className="absolute pointer-events-none" style={{ left: '50%', top: '9%', transform: 'translateX(-50%)', width: 'clamp(120px, 32%, 210px)', aspectRatio: '1 / 1.15' }}>
-        <div className="absolute inset-0 rounded-t-[46%] rounded-b-xl overflow-hidden border-[6px]" style={{ background: SKY[phase], borderColor: '#5a4a3a', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
-          {/* солнце/луна */}
-          {night ? (
-            <div className="absolute rounded-full" style={{ width: '26%', aspectRatio: '1', right: '14%', top: '14%', background: '#fff3e2', boxShadow: '0 0 20px rgba(255,243,226,0.7)' }} />
+      {/* окно: высота ограничена — всегда на стене */}
+      <div className="absolute" style={{ left: '7.5%', top: '7%', height: 'clamp(104px, 34%, 196px)', aspectRatio: '0.8', maxWidth: '32%' }}>
+        <div className="absolute inset-0 rounded-t-[46%] rounded-b-[8px] overflow-hidden border-[6px]" style={{ borderColor: '#3a2f52', background: SKY[phase], boxShadow: nightish ? '0 0 30px rgba(255,217,142,0.12)' : '0 0 40px rgba(255,244,214,0.2)' }}>
+          {phase === 'night' && stars.map((s, i) => (
+            <div key={i} className="absolute rounded-full bg-cream" style={{ left: `${s.left}%`, top: `${s.top}%`, width: s.r, height: s.r, animation: `twinkle ${2 + s.delay}s ease-in-out infinite ${s.delay}s` }} />
+          ))}
+          {phase !== 'night' ? (
+            <div className="absolute rounded-full" style={{ right: '16%', top: '14%', width: '22%', aspectRatio: 1, background: phase === 'evening' ? '#ffd28e' : '#fff4c9', boxShadow: '0 0 26px 8px rgba(255,236,180,0.7)' }} />
           ) : (
-            <div className="absolute rounded-full" style={{ width: '24%', aspectRatio: '1', right: '16%', top: '16%', background: '#ffd98e', boxShadow: '0 0 24px rgba(255,217,142,0.8)' }} />
+            <div className="absolute rounded-full overflow-hidden" style={{ right: '16%', top: '12%', width: '20%', aspectRatio: 1, background: '#fdf6d8', boxShadow: '0 0 22px 6px rgba(253,246,216,0.45)' }} />
           )}
-          {/* звёзды ночью */}
-          {stars.map((st, i) => (
-            <span key={i} className="absolute rounded-full bg-cream" style={{ left: `${st.left}%`, top: `${st.top}%`, width: st.s, height: st.s, animation: `twinkle ${2 + st.delay}s ease-in-out infinite` }} />
+          {(weather.kind === 'clouds' || weather.kind === 'rain' || weather.kind === 'wind') && (
+            <>
+              <div className="absolute rounded-full bg-white/70" style={{ left: '8%', top: '24%', width: '46%', height: '13%', animation: 'floatSlow 9s ease-in-out infinite' }} />
+              <div className="absolute rounded-full bg-white/50" style={{ left: '40%', top: '42%', width: '52%', height: '12%', animation: 'floatSlow 11s ease-in-out infinite 1.2s' }} />
+            </>
+          )}
+          {weather.kind === 'rain' && rainDrops.map((d, i) => (
+            <div key={i} className="absolute w-[2px] rounded-full bg-sky/70" style={{ left: `${d.left}%`, top: '-12%', height: 12, animation: `rainDrop ${d.dur}s linear infinite ${d.delay}s` }} />
           ))}
-          {/* холмы */}
-          <div className="absolute bottom-0 inset-x-0" style={{ height: '30%', background: night ? '#1a2440' : '#4a6a4a', borderRadius: '60% 60% 0 0 / 100% 100% 0 0' }} />
-          {/* осадки */}
-          {drops.map((d, i) => (
-            <span key={i} className="absolute rounded-full" style={{
-              left: `${d.left}%`, top: '-5%',
-              width: weather.kind === 'rain' ? 1.5 : d.size, height: weather.kind === 'rain' ? 10 : d.size,
-              background: weather.kind === 'rain' ? 'rgba(142,202,230,0.7)' : '#fff3e2',
-              animation: `${weather.kind === 'rain' ? 'rainDrop' : 'snowDrop'} ${d.dur}s linear infinite`, animationDelay: `${d.delay}s`,
-            }} />
+          {weather.kind === 'snow' && snow.map((s, i) => (
+            <div key={i} className="absolute rounded-full bg-white/85" style={{ left: `${s.left}%`, top: '-8%', width: 4.5, height: 4.5, animation: `snowDrop ${s.dur}s linear infinite ${s.delay}s` }} />
           ))}
-          {/* перекладины */}
-          <div className="absolute inset-y-0 left-1/2 w-[5px] -translate-x-1/2" style={{ background: '#5a4a3a' }} />
-          <div className="absolute inset-x-0 top-1/2 h-[5px] -translate-y-1/2" style={{ background: '#5a4a3a' }} />
         </div>
-        {/* подоконник */}
-        <div className="absolute -bottom-2 -inset-x-2 h-3 rounded-md" style={{ background: '#6b5a48' }} />
+        <div className="absolute -bottom-2.5 -left-1.5 -right-1.5 h-2.5 rounded-[5px]" style={{ background: '#4a3d66' }} />
       </div>
 
-      {/* гирлянда */}
-      <svg className="absolute top-0 inset-x-0 w-full pointer-events-none" style={{ height: '14%' }} viewBox="0 0 100 14" preserveAspectRatio="none">
-        <path d="M0 2 Q25 8 50 4 T100 3" stroke="#8a7a5a" strokeWidth="0.5" fill="none" />
-        {[8, 22, 36, 50, 64, 78, 92].map((x, i) => (
-          <circle key={x} cx={x} cy={i % 2 ? 6 : 5} r="1.4" fill={['#ffd98e', '#ffaec9', '#9fe8c9', '#8ecae6'][i % 4]} style={{ animation: `twinkle ${2 + (i % 3)}s ease-in-out infinite` }} />
+      {/* гирлянда под потолком — всегда */}
+      <svg className="absolute inset-x-0 top-0 w-full pointer-events-none" height="46" viewBox="0 0 400 46" preserveAspectRatio="none">
+        <path d="M0 8 Q100 30 200 14 T400 10" stroke="#3a2f52" strokeWidth="2" fill="none" />
+        {[40, 90, 140, 190, 240, 290, 340].map((x, i) => (
+          <circle key={x} cx={x} cy={[18, 24, 20, 16, 20, 24, 18][i]} r="4.5"
+            fill={['#ffd98e', '#ffaec9', '#9fe8c9', '#8ecae6', '#c8b6ff', '#ffb49b', '#ffd98e'][i]}
+            style={{ animation: `twinkle ${2.4 + i * 0.3}s ease-in-out infinite ${i * 0.35}s`, filter: 'drop-shadow(0 0 6px currentColor)' }} />
         ))}
       </svg>
+
+      {/* картина на стене — всегда */}
+      <div className="absolute pointer-events-none" style={{ right: '26%', top: '9%', width: '11%', minWidth: 54, maxWidth: 92 }}>
+        <svg viewBox="0 0 90 74" className="w-full drop-shadow-lg">
+          <rect x="2" y="2" width="86" height="70" rx="6" fill="#4a3d66" />
+          <rect x="9" y="9" width="72" height="56" rx="3" fill="#1c2a52" />
+          <circle cx="60" cy="26" r="9" fill="#ffd98e" opacity="0.9" />
+          <path d="M9 55 l20 -18 14 12 12 -9 24 15 z" fill="#2e4a43" />
+          <path d="M9 65 h72 v-6 l-24 -12 -12 8 -14 -10 -22 14 z" fill="#3a5248" opacity="0.85" />
+        </svg>
+      </div>
+
+      {/* коврик-облако */}
+      {has('furn_rug') && (
+        <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none" style={{ bottom: '5.5%', width: '44%', maxWidth: 380 }}>
+          <svg viewBox="0 0 200 60" className="w-full opacity-90">
+            <ellipse cx="100" cy="34" rx="96" ry="24" fill="#fff3e2" opacity="0.14" />
+            <ellipse cx="100" cy="30" rx="76" ry="17" fill="#fff3e2" opacity="0.18" />
+          </svg>
+        </div>
+      )}
+
+      {/* звёздная лампа */}
+      {has('furn_starlamp') && (
+        <div className="absolute pointer-events-none" style={{ right: '4.5%', bottom: '20%', width: '12%', minWidth: 56, maxWidth: 100 }}>
+          <svg viewBox="0 0 80 140" className="w-full">
+            <ellipse cx="40" cy="34" rx="26" ry="26" fill="#ffd98e" opacity="0.85" style={{ animation: 'lampGlow 4s ease-in-out infinite' }} />
+            <ellipse cx="40" cy="34" rx="38" ry="38" fill="#ffd98e" opacity="0.22" style={{ animation: 'lampGlow 4s ease-in-out infinite' }} />
+            <rect x="36" y="58" width="8" height="62" rx="4" fill="#4a3d66" />
+            <ellipse cx="40" cy="124" rx="22" ry="8" fill="#3a2f52" />
+            <path d="M40 14 l4 8 9 1-6.5 6 1.5 9-8-4.5-8 4.5 1.5-9-6.5-6 9-1z" fill="#fff3e2" />
+          </svg>
+        </div>
+      )}
+
+      {/* аквариум */}
+      {has('furn_aquarium') && (
+        <div className="absolute pointer-events-none" style={{ left: '27%', bottom: '24%', width: '14%', minWidth: 62, maxWidth: 110 }}>
+          <svg viewBox="0 0 100 100" className="w-full">
+            <rect x="10" y="26" width="80" height="58" rx="10" fill="rgba(142,202,230,0.32)" stroke="#8ecae6" strokeWidth="2.5" />
+            <circle cx="62" cy="46" r="9" fill="#fdf6d8" opacity="0.95" />
+            <path d="M30 62 q6 -5 12 0 q6 5 12 0" stroke="#ffffff" strokeWidth="2.5" fill="none" opacity="0.6" />
+            <ellipse cx="38" cy="74" rx="7" ry="3.5" fill="#ff9e7d" />
+            <path d="M45 74 l7 -4 v8 z" fill="#ff9e7d" />
+            <circle cx="38" cy="73" r="1.3" fill="#2b1d33" />
+            <ellipse cx="50" cy="90" rx="44" ry="6" fill="#3a2f52" />
+          </svg>
+        </div>
+      )}
+
+      {/* книжная полка */}
+      {has('furn_bookshelf') && (
+        <div className="absolute pointer-events-none" style={{ right: '5%', top: '8%', width: '16%', minWidth: 76, maxWidth: 140 }}>
+          <svg viewBox="0 0 120 90" className="w-full">
+            <rect x="4" y="6" width="112" height="78" rx="8" fill="#4a3d66" />
+            <rect x="10" y="12" width="100" height="30" rx="4" fill="#2b2140" />
+            <rect x="10" y="48" width="100" height="30" rx="4" fill="#2b2140" />
+            {[[14, '#ff8f7d'], [24, '#9fe8c9'], [34, '#ffd98e'], [46, '#8ecae6'], [56, '#c8b6ff']].map(([x, col], i) => (
+              <rect key={i} x={x as number} y={16} width={7} height={26} rx={2} fill={col as string} />
+            ))}
+            {[[14, '#8ecae6'], [26, '#ffaec9'], [38, '#9fe8c9'], [50, '#ffd98e']].map(([x, col], i) => (
+              <rect key={i} x={x as number} y={52} width={7} height={26} rx={2} fill={col as string} />
+            ))}
+            <rect x="76" y="52" width="26" height="26" rx="4" fill="#c8b6ff" opacity="0.8" />
+          </svg>
+        </div>
+      )}
+
+      {/* растение-светлячок */}
+      {has('furn_plant') && (
+        <div className="absolute pointer-events-none" style={{ left: '24%', bottom: '10%', width: '8%', minWidth: 40, maxWidth: 66 }}>
+          <svg viewBox="0 0 60 90" className="w-full">
+            <path d="M30 60 q-2 -26 -16 -34" stroke="#7fd4ae" strokeWidth="4" fill="none" strokeLinecap="round" />
+            <path d="M30 60 q2 -30 18 -40" stroke="#7fd4ae" strokeWidth="4" fill="none" strokeLinecap="round" />
+            <circle cx="14" cy="24" r="7" fill="#9fe8c9" style={{ animation: 'twinkle 3s ease-in-out infinite' }} />
+            <circle cx="48" cy="18" r="6" fill="#ffd98e" style={{ animation: 'twinkle 3s ease-in-out infinite 1s' }} />
+            <path d="M18 60 h24 l-3 22 h-18 z" fill="#d98e73" />
+            <rect x="16" y="56" width="28" height="8" rx="3" fill="#c07a5f" />
+          </svg>
+        </div>
+      )}
+
+      {/* музыкальная шкатулка */}
+      {has('furn_musicbox') && (
+        <div className="absolute pointer-events-none" style={{ left: '5%', bottom: '7.5%', width: '8%', minWidth: 40, maxWidth: 60 }}>
+          <svg viewBox="0 0 70 60" className="w-full">
+            <rect x="8" y="18" width="54" height="34" rx="6" fill="#c8b6ff" stroke="#a992f0" strokeWidth="2.5" />
+            <path d="M8 18 L14 8 H56 L62 18 Z" fill="#a992f0" />
+            <circle cx="35" cy="35" r="8" fill="#fff3e2" />
+            <circle cx="35" cy="35" r="3" fill="#a992f0" />
+            <text x="44" y="15" fontSize="12" fill="#ffd98e" style={{ animation: 'bob 2.4s ease-in-out infinite' }}>♪</text>
+          </svg>
+        </div>
+      )}
 
       {/* пол: доски */}
       <svg className="absolute inset-x-0 bottom-0 w-full opacity-[0.16] pointer-events-none" style={{ height: '38%' }} preserveAspectRatio="none" viewBox="0 0 100 38">
@@ -114,97 +191,59 @@ export default function RoomScene({ themeId, furniture, phase, weather, sleeping
       {dirty && (
         <svg className="absolute inset-x-0 bottom-0 w-full pointer-events-none" style={{ height: '34%' }} preserveAspectRatio="none" viewBox="0 0 100 34">
           {grime.slice(0, grimy ? 10 : 5).map((g, i) => (
-            <ellipse key={i} cx={g.left} cy={34 - g.bottom} rx={g.rx / 4} ry={g.ry / 3} fill="#241a12" opacity={grimy ? 0.5 : 0.3} transform={`rotate(${g.tilt} ${g.left} ${34 - g.bottom})`} />
+            <ellipse key={i} cx={g.left} cy={34 - g.bottom} rx={g.rx / 4} ry={g.ry / 3}
+              fill="#241a12" opacity={grimy ? 0.5 : 0.3}
+              transform={`rotate(${g.tilt} ${g.left} ${34 - g.bottom})`} />
+          ))}
+          {grimy && [20, 45, 70].map((x, i) => (
+            <path key={`cr${i}`} d={`M${x} ${10 + i * 6} q3 -2 6 0 q2 1.5 5 0`} stroke="#241a12" strokeWidth="1.4" fill="none" strokeLinecap="round" opacity="0.5" />
           ))}
         </svg>
       )}
 
-      {/* мебель */}
-      {has('furn_starlamp') && (
-        <div className="absolute pointer-events-none" style={{ right: '7%', bottom: '12%', width: '9%', minWidth: 44, maxWidth: 66 }}>
-          <div className="relative">
-            <div className="w-full rounded-t-full rounded-b-lg" style={{ aspectRatio: '1/1.3', background: 'linear-gradient(180deg,#ffd98e,#f4c266)', boxShadow: `0 0 ${night ? 40 : 18}px rgba(255,217,142,${night ? 0.6 : 0.3})`, animation: 'lampGlow 3s ease-in-out infinite' }} />
-            <div className="mx-auto w-[14%] bg-[#6b5a48]" style={{ height: 26 }} />
-            <div className="mx-auto w-[60%] h-2 rounded-full bg-[#6b5a48]" />
-          </div>
-        </div>
-      )}
-      {has('furn_aquarium') && (
-        <div className="absolute pointer-events-none" style={{ left: '8%', bottom: '13%', width: '13%', minWidth: 60, maxWidth: 90 }}>
-          <div className="relative rounded-lg overflow-hidden border-2 border-sky/30" style={{ aspectRatio: '1.4/1', background: 'linear-gradient(180deg,rgba(142,202,230,0.25),rgba(111,180,216,0.4))' }}>
-            <div className="absolute rounded-full bg-butter anim-float" style={{ width: '22%', aspectRatio: '1', left: '20%', top: '25%' }} />
-            <div className="absolute bottom-0 inset-x-0 h-[18%]" style={{ background: '#d9b87a' }} />
-          </div>
-          <div className="h-3 bg-[#5a4a3a] rounded-b" />
-        </div>
-      )}
-      {has('furn_bookshelf') && (
-        <div className="absolute pointer-events-none" style={{ left: '3%', top: '20%', width: '11%', minWidth: 54, maxWidth: 80 }}>
-          <div className="border-2 border-[#6b5a48] rounded-md bg-[#3a2f28] p-1 space-y-1" style={{ aspectRatio: '1/1.4' }}>
-            {[0, 1, 2].map(r => (
-              <div key={r} className="flex gap-[2px] items-end" style={{ height: '28%' }}>
-                {[0, 1, 2, 3].map(b => <div key={b} className="flex-1 rounded-[1px]" style={{ height: `${60 + ((r * 4 + b) % 4) * 10}%`, background: ['#ff8f7d', '#9fe8c9', '#8ecae6', '#ffd98e', '#c8b6ff'][(r + b) % 5] }} />)}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      {has('furn_plant') && (
-        <div className="absolute pointer-events-none" style={{ right: '16%', bottom: '11%', width: '7%', minWidth: 36, maxWidth: 52 }}>
-          <div className="relative flex flex-col items-center">
-            <svg viewBox="0 0 60 70" className="w-full">
-              <path d="M30 40 C20 20 22 8 30 2 C38 8 40 20 30 40 Z" fill="#8fca7f" />
-              <path d="M30 40 C14 34 8 24 8 14 C20 16 28 26 30 40 Z" fill="#7fb96f" />
-              <path d="M30 40 C46 34 52 24 52 14 C40 16 32 26 30 40 Z" fill="#9fda8f" />
-              <path d="M22 40 h16 l-2 22 h-12 z" fill="#c07a5f" />
-            </svg>
-            {night && <span className="absolute top-1 right-0 w-2 h-2 rounded-full bg-butter" style={{ animation: 'twinkle 2s ease-in-out infinite' }} />}
-          </div>
-        </div>
-      )}
-      {has('furn_musicbox') && (
-        <div className="absolute pointer-events-none" style={{ left: '24%', bottom: '10%', width: '8%', minWidth: 40, maxWidth: 58 }}>
-          <div className="rounded-md border border-butter/30 bg-[#6b4a3a] relative" style={{ aspectRatio: '1.3/1' }}>
-            <div className="absolute top-1 inset-x-1 h-1.5 rounded bg-butter/40" />
-            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-butter"><Icon name="musicbox" className="w-3 h-3" /></div>
-          </div>
-        </div>
-      )}
-
-      {/* пылинки днём */}
-      {dust.map((d, i) => (
-        <span key={i} className="absolute rounded-full bg-cream/30 pointer-events-none" style={{ left: `${d.left}%`, top: `${d.top}%`, width: 2.5, height: 2.5, animation: `firefly ${d.dur}s ease-in-out infinite`, animationDelay: `${d.delay}s` }} />
-      ))}
-      {/* светлячки ночью */}
-      {fireflies.map((f, i) => (
-        <span key={i} className="absolute rounded-full pointer-events-none" style={{ left: `${f.left}%`, top: `${f.top}%`, width: 4, height: 4, background: '#ffd98e', boxShadow: '0 0 10px 3px rgba(255,217,142,0.5)', animation: `firefly ${f.dur}s ease-in-out infinite`, animationDelay: `${f.delay}s` }} />
+      {/* амбиент: светлячки ночью, пылинки днём */}
+      {nightish ? fireflies.map((f, i) => (
+        <div key={i} className="absolute rounded-full pointer-events-none" style={{ left: `${f.left}%`, top: `${f.top}%`, width: 5, height: 5, background: '#ffd98e', boxShadow: '0 0 10px 3px rgba(255,217,142,0.5)', animation: `firefly ${f.dur}s ease-in-out infinite ${f.delay}s` }} />
+      )) : motes.map((m, i) => (
+        <div key={i} className="absolute rounded-full bg-cream/40 pointer-events-none" style={{ left: `${m.left}%`, top: `${m.top}%`, width: 3, height: 3, animation: `firefly ${m.dur}s ease-in-out infinite ${m.delay}s` }} />
       ))}
 
-      {/* коврик */}
-      <div className="absolute pointer-events-none" style={{ left: '50%', bottom: '4%', transform: 'translateX(-50%)', width: '46%', height: '9%' }}>
-        <div className="w-full h-full rounded-[50%] border-4" style={{ background: 'rgba(200,182,255,0.14)', borderColor: 'rgba(200,182,255,0.28)' }} />
-      </div>
+      {/* ночное затемнение + виньетка */}
+      <div className="absolute inset-0 pointer-events-none transition-opacity duration-1000" style={{ background: 'linear-gradient(180deg, rgba(8,12,28,0.42), rgba(8,12,28,0.18) 55%, rgba(8,12,28,0.45))', opacity: phase === 'night' ? 1 : phase === 'evening' ? 0.55 : phase === 'morning' ? 0.25 : 0.1 }} />
+      <div className="absolute inset-0 pointer-events-none room-vignette" />
 
-      {/* виньетка + ночное затемнение */}
-      <div className="absolute inset-0 room-vignette pointer-events-none" />
-      <div className="absolute inset-0 pointer-events-none transition-opacity duration-1000" style={{ background: 'rgba(8,10,24,0.55)', opacity: sleeping ? 1 : night ? 0.45 : 0 }} />
-
-      {/* мягкий свет и облако снов во сне */}
+      {/* сон: приглушённый свет + мягкое свечение + облако снов */}
+      <div className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
+        style={{ background: 'radial-gradient(ellipse at 50% 78%, rgba(10,15,34,0.15) 0%, rgba(8,12,28,0.62) 100%)', opacity: sleeping ? 1 : 0 }} />
+      <div className="absolute pointer-events-none transition-opacity duration-1000"
+        style={{ left: '50%', bottom: '6%', width: '52%', maxWidth: 440, aspectRatio: '2.4', transform: 'translateX(-50%)', background: 'radial-gradient(ellipse at center, rgba(255,217,142,0.14) 0%, transparent 70%)', opacity: sleeping ? 1 : 0 }} />
       {sleeping && (
-        <>
-          <div className="absolute pointer-events-none" style={{ left: '50%', bottom: '20%', transform: 'translateX(-50%)', width: '55%', aspectRatio: '1', background: 'radial-gradient(circle, rgba(255,217,142,0.14) 0%, transparent 65%)', animation: 'pulseSoft 4s ease-in-out infinite' }} />
-          <div className="absolute pointer-events-none anim-float" style={{ left: '50%', bottom: '64%', transform: 'translateX(-30%)' }}>
-            <div className="relative w-24 h-14">
-              <div className="absolute inset-0 rounded-full bg-night-800/80 border border-sky/25" style={{ filter: 'blur(1px)' }} />
-              <span className="absolute left-3 top-3 text-butter" style={{ animation: 'twinkle 2.4s ease-in-out infinite' }}><Icon name="star" className="w-4 h-4" /></span>
-              <span className="absolute left-10 top-2 text-lilac" style={{ animation: 'twinkle 2.4s ease-in-out infinite 0.8s' }}><Icon name="moon" className="w-4 h-4" /></span>
-              <span className="absolute left-16 top-5 text-mint" style={{ animation: 'twinkle 2.4s ease-in-out infinite 1.6s' }}><Icon name="spark" className="w-3 h-3" /></span>
-            </div>
-          </div>
-        </>
+        <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none anim-float" style={{ bottom: '58%', zIndex: 15 }}>
+          <DreamCloud />
+        </div>
       )}
 
       {children}
+    </div>
+  );
+}
+
+/* облачко, в котором по очереди проявляются образы сна */
+function DreamCloud() {
+  return (
+    <div className="relative w-[120px] h-[64px]">
+      <svg viewBox="0 0 120 64" className="absolute inset-0 w-full h-full drop-shadow-lg">
+        <ellipse cx="34" cy="42" rx="26" ry="17" fill="rgba(255,243,226,0.92)" />
+        <ellipse cx="66" cy="34" rx="30" ry="20" fill="rgba(255,243,226,0.96)" />
+        <ellipse cx="94" cy="44" rx="22" ry="14" fill="rgba(255,243,226,0.9)" />
+        <ellipse cx="20" cy="54" rx="8" ry="5" fill="rgba(255,243,226,0.5)" />
+        <ellipse cx="12" cy="62" rx="5" ry="3.5" fill="rgba(255,243,226,0.35)" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center text-butter" style={{ paddingBottom: 8 }}>
+        <span className="dream-icon" style={{ animationDelay: '0s' }}><Icon name="star" className="w-5 h-5" /></span>
+        <span className="dream-icon absolute" style={{ animationDelay: '2s' }}><Icon name="moon" className="w-5 h-5" /></span>
+        <span className="dream-icon absolute" style={{ animationDelay: '4s' }}><Icon name="spark" className="w-5 h-5" /></span>
+      </div>
     </div>
   );
 }
