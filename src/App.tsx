@@ -168,7 +168,7 @@ function Game() {
         {/* ================= СЦЕНА ================= */}
         <div className="relative h-[46dvh] min-h-[330px] sm:h-[50dvh] sm:min-h-[380px] lg:h-full lg:min-h-0 overflow-hidden border-b lg:border border-sky/10 lg:rounded-[28px]">
           <RoomScene themeId={s.roomTheme} furniture={s.furniture} phase={phase} weather={weather}
-            sleeping={pet.sleeping} cleanliness={pet.stats.cleanliness} dreamLearning={sleepLearning}>
+            sleeping={pet.sleeping} cleanliness={pet.stats.cleanliness}>
             {/* инфо-чипы сцены */}
             <div className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3 flex gap-1.5 sm:gap-2 z-20">
               <span className="chip !text-[11px] backdrop-blur-sm bg-night-900/60"><Icon name={PHASE_ICON[phase]} className="w-3.5 h-3.5 text-butter" />{PHASE_LABEL[phase]}</span>
@@ -197,7 +197,7 @@ function Game() {
                       Внешний div — только позиционирование (без анимации transform),
                       внутренний — анимация появления. Хвостик указывает на голову. */}
                   {s.bubble && (
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[78%] w-max max-w-[230px] z-30 pointer-events-none">
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[78%] w-max max-w-[min(380px,86vw)] z-30 pointer-events-none">
                       <div key={s.bubble.at} className="anim-bubble">
                         <div className="relative bg-cream text-night-900 px-3.5 py-2.5 rounded-2xl text-[11.5px] sm:text-[12.5px] font-extrabold leading-snug shadow-2xl">
                           {s.bubble.text}
@@ -205,6 +205,14 @@ function Game() {
                           <span className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 bg-cream rotate-45 rounded-[3px]" />
                         </div>
                       </div>
+                    </div>
+                  )}
+                  {/* Облака сна привязаны к питомцу (центрированы по его обёртке),
+                      а не к сцене — так они всегда ровно над головой.
+                      Скрываются, когда показывается реплика (например, при побудке). */}
+                  {pet.sleeping && !s.bubble && (
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[84%] z-20 pointer-events-none">
+                      <DreamCloud learning={sleepLearning} />
                     </div>
                   )}
                   <div key={squishAt} className={squishAt ? 'anim-squish' : ''}>
@@ -272,6 +280,77 @@ function QuickBtn({ icon, label, onClick, disabled }: { icon: string; label: str
       </span>
       <span className="text-[8px] sm:text-[9.5px] font-black text-cream/80 drop-shadow leading-none whitespace-nowrap">{label}</span>
     </button>
+  );
+}
+
+/* Целостная «сновидческая» композиция над спящим питомцем:
+   большое облако + два маленьких, плывущих с разной скоростью,
+   мерцающие звёзды вокруг. Когда learning=true — нейросеть читает
+   Википедию: в облаке пульсирует мозг с книгой, а снизу прикреплена
+   pill-подпись «учится во сне…» — всё как единое целое. */
+function DreamCloud({ learning }: { learning: boolean }) {
+  return (
+    <div className="relative w-[200px] h-[96px]">
+      {/* мерцающие звёзды вокруг облаков */}
+      {[[14, 26, 0], [182, 18, 0.8], [10, 66, 1.4], [190, 60, 2]].map(([l, t, d], i) => (
+        <span key={`st${i}`} className="absolute rounded-full bg-butter"
+          style={{ left: l, top: t, width: 3, height: 3, animation: `twinkle ${2.2 + i * 0.5}s ease-in-out infinite ${d}s` }} />
+      ))}
+
+      {/* маленькое облако слева — плывёт медленно */}
+      <svg viewBox="0 0 64 36" className="absolute left-0 top-9 w-[62px] opacity-80"
+        style={{ animation: 'floatSlow 6.5s ease-in-out infinite 0.9s' }}>
+        <ellipse cx="22" cy="24" rx="17" ry="10" fill="rgba(255,243,226,0.78)" />
+        <ellipse cx="41" cy="19" rx="17" ry="12" fill="rgba(255,243,226,0.84)" />
+      </svg>
+
+      {/* маленькое облако справа — плывёт ещё медленнее */}
+      <svg viewBox="0 0 60 34" className="absolute right-0 top-11 w-[56px] opacity-70"
+        style={{ animation: 'floatSlow 7.5s ease-in-out infinite 1.7s' }}>
+        <ellipse cx="23" cy="20" rx="17" ry="11" fill="rgba(255,243,226,0.72)" />
+        <ellipse cx="41" cy="24" rx="14" ry="9" fill="rgba(255,243,226,0.68)" />
+      </svg>
+
+      {/* главное облако по центру */}
+      <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[132px] h-[66px]">
+        <svg viewBox="0 0 132 66" className="absolute inset-0 w-full h-full drop-shadow-lg">
+          <ellipse cx="37" cy="45" rx="28" ry="17" fill="rgba(255,243,226,0.92)" />
+          <ellipse cx="71" cy="34" rx="32" ry="20" fill="rgba(255,243,226,0.96)" />
+          <ellipse cx="101" cy="47" rx="23" ry="14" fill="rgba(255,243,226,0.9)" />
+        </svg>
+
+        <div className="absolute inset-0 flex items-center justify-center text-butter" style={{ paddingBottom: 8 }}>
+          {learning ? (
+            /* мозг в мягком свечении + книга/звезда — учимся во сне */
+            <span className="flex items-center gap-1.5">
+              <span className="relative flex items-center justify-center">
+                <span className="absolute w-9 h-9 rounded-full"
+                  style={{ background: 'rgba(200,182,255,0.35)', animation: 'pulseSoft 1.8s ease-in-out infinite' }} />
+                <Icon name="brain" className="relative w-6 h-6 text-lilac" />
+              </span>
+              <span className="dream-icon" style={{ animationDelay: '0s' }}><Icon name="book" className="w-4 h-4" /></span>
+              <span className="dream-icon absolute" style={{ animationDelay: '1.5s' }}><Icon name="star" className="w-4 h-4" /></span>
+            </span>
+          ) : (
+            <>
+              <span className="dream-icon" style={{ animationDelay: '0s' }}><Icon name="star" className="w-5 h-5" /></span>
+              <span className="dream-icon absolute" style={{ animationDelay: '2s' }}><Icon name="moon" className="w-5 h-5" /></span>
+              <span className="dream-icon absolute" style={{ animationDelay: '4s' }}><Icon name="spark" className="w-5 h-5" /></span>
+            </>
+          )}
+        </div>
+
+        {/* pill-подпись, прикреплённая к облаку — часть композиции */}
+        {learning && (
+          <div className="absolute left-1/2 -translate-x-1/2 -bottom-4 px-2.5 py-1 rounded-full whitespace-nowrap"
+            style={{ background: 'rgba(200,182,255,0.18)', border: '1px solid rgba(200,182,255,0.4)', animation: 'fadeIn 0.6s ease both' }}>
+            <span className="text-[9px] font-black text-lilac tracking-wide" style={{ textShadow: '0 0 8px rgba(200,182,255,0.5)' }}>
+              учится во сне…
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
