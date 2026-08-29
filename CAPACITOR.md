@@ -52,7 +52,7 @@ npx cap open ios       # Xcode → Product → Archive
 скачайте и установите на телефон.
 
 ### Вариант B — локально
-Нужны [Android Studio](https://developer.android.com/studio) и JDK 17.
+Нужны [Android Studio](https://developer.android.com/studio) и JDK 21 (Capacitor v7 требует Java release 21).
 ```bash
 npx cap open android
 ```
