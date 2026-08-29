@@ -195,9 +195,13 @@ export function chatBrain(text: string, state: GameState, fact?: { title: string
   /* ============ Знания из сети (RAG): пересказ статьи своими словами ============ */
   if (fact) {
     const retell = paraphrase(fact.text);
+    // память контекста: если уже рассказывал про это — вспомним, а не повторимся
+    const already = state.memories.some(m => m.kind === 'факт' && m.text.toLowerCase().includes(fact.title.toLowerCase()));
     return {
       lines: [
-        `О! Я только что прочитал про «${fact.title}». ${retell}`,
+        already
+          ? `Помнишь, я уже читал про «${fact.title}»? Вот что я запомнил: ${retell}`
+          : `О! Я только что прочитал про «${fact.title}». ${retell}`,
         R([
           'Потрясающе, правда? Спроси меня ещё о чём-нибудь — я умею искать в энциклопедии!',
           'Записал в свой блокнотик знаний. Задай ещё вопрос — я обожаю учиться!',
