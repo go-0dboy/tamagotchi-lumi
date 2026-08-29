@@ -17,7 +17,7 @@ const TABS = [
   { id: 'gifts', label: 'Подарки', icon: 'gift' },
 ];
 
-export default function CarePanel({ state, goScene }: { state: GameState; goScene: () => void }) {
+export default function CarePanel({ state }: { state: GameState }) {
   const [tab, setTab] = useState('kitchen');
   const [toast, setToast] = useState('');
   const flash = (t: string) => { setToast(t); setTimeout(() => setToast(''), 2200); };
@@ -153,7 +153,7 @@ export default function CarePanel({ state, goScene }: { state: GameState; goScen
             <div className="text-[10.5px] font-black text-cream/45 uppercase tracking-wider mb-1.5">Тема комнаты</div>
             <div className="flex gap-2 flex-wrap">
               {ROOM_THEMES.map(t => (
-                <button key={t.id} onClick={() => { engine.setRoomTheme(t.id); sfx.pop(); goScene(); }}
+                <button key={t.id} onClick={() => { engine.setRoomTheme(t.id); sfx.pop(); flash(`Тема «${t.name}» применена!`); }}
                   className={`chip !text-[11px] !py-2 transition-all ${state.roomTheme === t.id ? '!border-butter/60 text-butter bg-butter/10' : 'hover:border-sky/40'}`}>
                   <span className="w-3 h-3 rounded-full inline-block" style={{ background: t.wall }} />{t.name}
                 </button>

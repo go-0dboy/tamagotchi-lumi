@@ -250,7 +250,7 @@ function Game() {
                 </div>
               </div>
             )}
-            {tab === 'care' && <CarePanel state={s} goScene={() => setTab('scene')} />}
+            {tab === 'care' && <CarePanel state={s} />}
             {tab === 'games' && <Minigames petName={pet.name} />}
             {tab === 'chat' && <ChatPanel state={s} />}
             {tab === 'journal' && <Journal state={s} />}
@@ -334,8 +334,8 @@ function FxLayer({ fx }: { fx: { kind: 'pet' | 'clean' | 'bath'; at: number } })
   ];
   return (
     <div key={key} className="absolute inset-0 pointer-events-none z-30">
-      {/* кольцо всплеска у лап */}
-      <span className="absolute left-1/2 -translate-x-1/2 fx-splash rounded-full border-2 border-sky/60" style={{ bottom: '22%', width: '150px', height: '40px' }} />
+      {/* кольцо всплеска у лап (центрируется через keyframe translateX(-50%)) */}
+      <span className="absolute left-1/2 fx-splash rounded-full border-2 border-sky/60" style={{ bottom: '22%', width: '150px', height: '40px' }} />
       {bubbles.map((b, i) => (
         <span key={i} className="absolute fx-bubble" style={{ left: b.l, bottom: b.b, animationDelay: `${b.d}s`, ['--bx' as string]: b.x }}>
           <span className="block rounded-full" style={{
