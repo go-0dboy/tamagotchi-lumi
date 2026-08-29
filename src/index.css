@@ -171,4 +171,12 @@ html, body {
 
 .text-glow { text-shadow: 0 0 24px rgba(255,217,142,0.45); }
 .room-vignette { background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(8,12,28,0.5) 100%); }
+
+/* полноэкранные оверлеи: обычный отступ 16px + запас под системную панель
+   Android («Назад/Домой») и домашний индикатор iPhone */
+.safe-p-4 {
+  padding: 1rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
 ::selection { background: rgba(255,217,142,0.3); }

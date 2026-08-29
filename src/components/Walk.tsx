@@ -50,7 +50,7 @@ export default function Walk({ onClose }: { onClose: () => void }) {
   const locs: WalkLoc[] = [...WALK_LOCATIONS];
 
   return (
-    <div className="fixed inset-0 z-50 flex p-4 bg-night-950/90 anim-fade overflow-y-auto" onClick={step === 'result' ? onClose : undefined}>
+    <div className="fixed inset-0 z-50 flex safe-p-4 bg-night-950/90 anim-fade overflow-y-auto" onClick={step === 'result' ? onClose : undefined}>
       {step === 'pick' && (
         <div className="card max-w-lg w-full m-auto p-4 sm:p-5 anim-pop" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between mb-1">
