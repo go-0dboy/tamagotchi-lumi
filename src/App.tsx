@@ -156,7 +156,10 @@ function Game() {
       {showWalk && pet && !pet.transcended && <Walk onClose={() => setShowWalk(false)} />}
 
       {/* ================= НАВИГАЦИЯ СВЕРХУ ================= */}
-      <header className="sticky top-0 z-30 border-b border-sky/10 shrink-0" style={{ background: 'rgba(12,18,32,0.85)', backdropFilter: 'blur(12px)' }}>
+      {/* Отступ под безопасную зону: на Android статус-бар занимает своё место
+          (inset = 0), на iOS env(safe-area-inset-top) компенсирует «чёлку». */}
+      <header className="sticky top-0 z-30 border-b border-sky/10 shrink-0"
+        style={{ background: 'rgba(12,18,32,0.85)', backdropFilter: 'blur(12px)', paddingTop: 'env(safe-area-inset-top)' }}>
         <nav className="max-w-[1280px] mx-auto flex items-center justify-center gap-0.5 sm:gap-1 px-1.5 py-1.5">
           {TABS.map(t => (
             <button key={t.id} onClick={() => { setTab(t.id as typeof tab); sfx.tap(); }}
