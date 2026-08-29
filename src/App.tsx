@@ -191,21 +191,24 @@ function Game() {
             ) : (
               <div className="absolute inset-x-0 bottom-[84px] sm:bottom-[92px] lg:bottom-[70px] flex justify-center z-10">
                 <div className="relative">
-                  {/* реплика привязана к питомцу — облачко над головой.
-                      Внешний контейнер отвечает за позиционирование (не анимируется),
-                      внутренний anim-bubble — за появление. Так transform'ы не конфликтуют
-                      и облачко всегда над головой на любом разрешении. */}
+                  {/* Реплика привязана к питомцу. bottom задан ПРОЦЕНТОМ от высоты
+                      спрайта (78% ≈ макушка), а не bottom-full — так облачко всегда
+                      сидит на голове и не улетает к верху окна на любом разрешении.
+                      Внешний div — только позиционирование (без анимации transform),
+                      внутренний — анимация появления. Хвостик указывает на голову. */}
                   {s.bubble && (
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[260px] z-30 pointer-events-none">
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[78%] w-max max-w-[230px] z-30 pointer-events-none">
                       <div key={s.bubble.at} className="anim-bubble">
-                        <div className="bg-cream text-night-900 px-3.5 py-2.5 rounded-2xl rounded-bl-md text-[11.5px] sm:text-[12.5px] font-extrabold leading-snug shadow-2xl">
+                        <div className="relative bg-cream text-night-900 px-3.5 py-2.5 rounded-2xl text-[11.5px] sm:text-[12.5px] font-extrabold leading-snug shadow-2xl">
                           {s.bubble.text}
+                          {/* хвостик пузыря, указывающий на макушку */}
+                          <span className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 bg-cream rotate-45 rounded-[3px]" />
                         </div>
                       </div>
                     </div>
                   )}
                   <div key={squishAt} className={squishAt ? 'anim-squish' : ''}>
-                    <PetSprite pet={pet} size="min(50vw, 240px)" onStroke={() => engine.petStroke()} />
+                    <PetSprite pet={pet} size="min(46vw, 232px)" onStroke={() => engine.petStroke()} />
                   </div>
                 </div>
               </div>
