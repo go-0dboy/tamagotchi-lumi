@@ -191,11 +191,16 @@ function Game() {
             ) : (
               <div className="absolute inset-x-0 bottom-[84px] sm:bottom-[92px] lg:bottom-[70px] flex justify-center z-10">
                 <div className="relative">
-                  {/* реплика привязана к питомцу — облачко над головой */}
+                  {/* реплика привязана к питомцу — облачко над головой.
+                      Внешний контейнер отвечает за позиционирование (не анимируется),
+                      внутренний anim-bubble — за появление. Так transform'ы не конфликтуют
+                      и облачко всегда над головой на любом разрешении. */}
                   {s.bubble && (
-                    <div key={s.bubble.at} className="anim-bubble absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-max max-w-[260px] z-20 pointer-events-none">
-                      <div className="bg-cream text-night-900 px-3.5 py-2.5 rounded-2xl rounded-bl-md text-[11.5px] sm:text-[12.5px] font-extrabold leading-snug shadow-2xl">
-                        {s.bubble.text}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-[260px] z-30 pointer-events-none">
+                      <div key={s.bubble.at} className="anim-bubble">
+                        <div className="bg-cream text-night-900 px-3.5 py-2.5 rounded-2xl rounded-bl-md text-[11.5px] sm:text-[12.5px] font-extrabold leading-snug shadow-2xl">
+                          {s.bubble.text}
+                        </div>
                       </div>
                     </div>
                   )}
