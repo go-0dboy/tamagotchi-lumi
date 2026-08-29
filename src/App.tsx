@@ -211,7 +211,7 @@ function Game() {
                       а не к сцене — так они всегда ровно над головой.
                       Скрываются, когда показывается реплика (например, при побудке). */}
                   {pet.sleeping && !s.bubble && (
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[84%] z-20 pointer-events-none">
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[78%] z-20 pointer-events-none">
                       <DreamCloud learning={sleepLearning} />
                     </div>
                   )}
@@ -290,29 +290,30 @@ function QuickBtn({ icon, label, onClick, disabled }: { icon: string; label: str
    pill-подпись «учится во сне…» — всё как единое целое. */
 function DreamCloud({ learning }: { learning: boolean }) {
   return (
-    <div className="relative w-[200px] h-[96px]">
+    <div className="relative w-[210px] h-[104px]">
       {/* мерцающие звёзды вокруг облаков */}
-      {[[14, 26, 0], [182, 18, 0.8], [10, 66, 1.4], [190, 60, 2]].map(([l, t, d], i) => (
+      {[[16, 10, 0], [188, 6, 0.8], [6, 46, 1.4], [200, 50, 2], [104, 0, 2.6]].map(([l, t, d], i) => (
         <span key={`st${i}`} className="absolute rounded-full bg-butter"
           style={{ left: l, top: t, width: 3, height: 3, animation: `twinkle ${2.2 + i * 0.5}s ease-in-out infinite ${d}s` }} />
       ))}
 
       {/* маленькое облако слева — плывёт медленно */}
-      <svg viewBox="0 0 64 36" className="absolute left-0 top-9 w-[62px] opacity-80"
+      <svg viewBox="0 0 64 36" className="absolute left-0 bottom-9 w-[60px] opacity-80"
         style={{ animation: 'floatSlow 6.5s ease-in-out infinite 0.9s' }}>
         <ellipse cx="22" cy="24" rx="17" ry="10" fill="rgba(255,243,226,0.78)" />
         <ellipse cx="41" cy="19" rx="17" ry="12" fill="rgba(255,243,226,0.84)" />
       </svg>
 
       {/* маленькое облако справа — плывёт ещё медленнее */}
-      <svg viewBox="0 0 60 34" className="absolute right-0 top-11 w-[56px] opacity-70"
+      <svg viewBox="0 0 60 34" className="absolute right-0 bottom-12 w-[54px] opacity-70"
         style={{ animation: 'floatSlow 7.5s ease-in-out infinite 1.7s' }}>
         <ellipse cx="23" cy="20" rx="17" ry="11" fill="rgba(255,243,226,0.72)" />
         <ellipse cx="41" cy="24" rx="14" ry="9" fill="rgba(255,243,226,0.68)" />
       </svg>
 
-      {/* главное облако по центру */}
-      <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[132px] h-[66px]">
+      {/* главное облако — у самого низа композиции: низ коробки стоит
+          на якоре (макушка), и облако растёт вверх, как облачко фразы */}
+      <div className="absolute left-1/2 bottom-0 -translate-x-1/2 w-[132px] h-[66px]">
         <svg viewBox="0 0 132 66" className="absolute inset-0 w-full h-full drop-shadow-lg">
           <ellipse cx="37" cy="45" rx="28" ry="17" fill="rgba(255,243,226,0.92)" />
           <ellipse cx="71" cy="34" rx="32" ry="20" fill="rgba(255,243,226,0.96)" />
