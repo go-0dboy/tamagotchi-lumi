@@ -32,6 +32,11 @@ async function applyStatusBar() {
   try {
     await StatusBar.setStyle({ style: Style.Dark });     // светлые иконки на тёмном
     await StatusBar.setBackgroundColor({ color: phaseStatusBarColor() });
+    /* Android: статус-бар занимает СВОЁ место сверху, а не наезжает на меню.
+       На iOS остаёмся в оверлее — «чёлку» компенсирует env(safe-area-inset-top) в CSS. */
+    if (Capacitor.getPlatform() === 'android') {
+      await StatusBar.setOverlaysWebView({ overlay: false });
+    }
   } catch { /* noop */ }
 }
 
