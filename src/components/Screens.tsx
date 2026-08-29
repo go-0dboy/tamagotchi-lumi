@@ -284,11 +284,13 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
   const doExportBrain = () => {
     const code = engine.exportBrain();
     if (!code) { flash('Мозг ещё не вырос', false); return; }
+    setBrainCode(code);
+    setShowBrainImport(true);
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(code)
         .then(() => flash('Модель мозга скопирована!'))
-        .catch(() => prompt('Скопируйте модель мозга:', code));
-    } else prompt('Скопируйте модель мозга:', code);
+        .catch(() => flash('Код модели показан в поле ниже', false));
+    } else flash('Код модели показан в поле ниже', false);
   };
   const doImportBrain = () => {
     if (!brainCode.trim()) { flash('Вставьте код модели в поле', false); return; }

@@ -58,15 +58,15 @@ export default function Walk({ onClose }: { onClose: () => void }) {
             <button className="btn btn-ghost !p-2" onClick={onClose} aria-label="Закрыть"><Icon name="close" className="w-5 h-5" /></button>
           </div>
           <p className="text-[12px] font-bold text-cream/50 mb-4">У каждого места — своя дорога и своя история. Нужна энергия (12+).</p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
             {locs.map(l => (
               <button key={l.id} onClick={() => go(l)}
-                className="card-soft p-3.5 text-left hover:-translate-y-0.5 active:scale-[0.97] transition-all group">
-                <span className="w-10 h-10 rounded-2xl flex items-center justify-center mb-2 text-peach group-hover:scale-110 transition-transform"
+                className="card-soft p-2.5 sm:p-3.5 flex flex-col items-center text-center sm:items-start sm:text-left hover:-translate-y-0.5 active:scale-[0.97] transition-all group min-w-0">
+                <span className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl flex items-center justify-center mb-1.5 sm:mb-2 text-peach group-hover:scale-110 transition-transform shrink-0"
                   style={{ background: 'rgba(255,180,155,0.12)' }}>
-                  <Icon name={l.icon} className="w-5 h-5" />
+                  <Icon name={l.icon} className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
                 </span>
-                <div className="font-display font-bold text-[12.5px] leading-tight">{l.name}</div>
+                <div className="font-display font-bold text-[10.5px] sm:text-[12.5px] leading-tight break-words w-full">{l.name}</div>
               </button>
             ))}
           </div>

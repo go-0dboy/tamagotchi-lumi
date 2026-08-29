@@ -297,7 +297,6 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
   return (
     <div ref={wrapRef} className={`relative cursor-pointer select-none ${pet.dna.idle}`} style={{ width: size }}
       onPointerDown={onStroke} role="button" aria-label={`Погладить ${pet.name}`}>
-      {/* всплывающие Z-z-z, когда спит */}
       {sleeping && (
         <>
           <span className="zzz" style={{ top: '6%', right: '4%', fontSize: '26px', animationDelay: '0s' }}>Z</span>
@@ -329,7 +328,6 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
           </defs>
 
           <ellipse cx="120" cy="218" rx="58" ry="11" fill="#0c1220" opacity="0.4" />
-
           <Tail type={dna.tail} color={c.p} inner={c.s} aura={c.aura} />
           <Ears type={dna.ears} color={c.p} inner={c.s} />
 

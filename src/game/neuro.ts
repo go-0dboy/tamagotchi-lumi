@@ -18,8 +18,8 @@ import { QUESTIONS as SCIENCE_QUESTIONS, FALLBACK_FACTS } from './knowledge';
 
 const UNK = 0; // <unk>
 const EOS = 1; // </s>
-const MAX_VOCAB = 300;        // стартовый словарь при рождении
-const MAX_ONLINE_VOCAB = 600; // предел роста словаря при онлайн-обучении
+const MAX_VOCAB = 300;         // стартовый словарь при рождении
+const MAX_ONLINE_VOCAB = 3000; // предел роста словаря при онлайн-обучении
 
 export interface BrainData {
   v: 1;

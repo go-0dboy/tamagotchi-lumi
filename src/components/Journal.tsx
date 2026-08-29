@@ -79,7 +79,7 @@ export default function Journal({ state }: { state: GameState }) {
           {state.pet && state.pet.knowledge.length > 0 && (
             <div className="card-soft p-3">
               <div className="text-[11px] font-black text-lilac uppercase tracking-wider mb-1">Знания</div>
-              <p className="text-[12px] font-bold text-cream/70">Изучено тем и фактов: <span className="text-butter">{state.pet.knowledge.length}</span>. Питомец умнеет с каждой викториной.</p>
+              <p className="text-[12px] font-bold text-cream/70">Изучено тем и фактов: <span className="text-butter">{state.pet.knowledge.length}</span>. Питомец умнеет с каждой викториной и каждой прочитанной статьёй.</p>
             </div>
           )}
           {state.memories.length === 0 && <p className="text-sm text-cream/40 font-bold text-center py-4">Воспоминания копятся с каждым вашим действием.</p>}

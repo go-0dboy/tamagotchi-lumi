@@ -6,10 +6,10 @@
 import type { GameState, Pet, MemoryItem, OfflineEvent, LegacyEntry } from './types';
 import { generateDNA, generatePersonality, mulberry32, pick, uid, speciesOf, RARITY_BONUS } from './dna';
 import { FOODS, SHOP, KEEPSAKES, QUEST_POOL, SKILLS, TRAIT_THRESHOLD } from './content';
-import { makeDreamText, dreamGiftId, makeDiaryText, MOOD_WORDS, OFFLINE_EVENTS, chatBrain, welcomeLine, WORDS } from './speech';
+import { makeDreamText, dreamGiftId, makeDiaryText, MOOD_WORDS, OFFLINE_EVENTS, chatBrain, welcomeLine, WORDS, correctText } from './speech';
 import { sfx, setSoundEnabled } from './sound';
 import { MiniLM, baseCorpus } from './neuro';
-import { FALLBACK_FACTS, fetchWikiFact } from './knowledge';
+import { FALLBACK_FACTS, fetchWikiFact, searchWiki } from './knowledge';
 
 const KEY = 'lumos.save.v1';
 const BRAIN_KEY = 'lumos.brain.v1';
@@ -194,7 +194,7 @@ class Engine {
   neuroThought(seedText?: string): string {
     const lm = this.lm; if (!lm || !lm.ready) return '';
     let seeds: string[] = [];
-    if (seedText) seeds = lm.tokenize(seedText).filter(w => lm.knows(w));
+    if (seedText) seeds = lm.tokenize(seedText).filter(w => lm.knows(w) && !Engine.STOPWORDS.has(w));
     if (!seeds.length && this.state.pet) {
       const pool = [
         ...this.state.pet.wordsLearned,
@@ -245,8 +245,8 @@ class Engine {
     }
 
     const roll = Math.random();
-    // добрая новость / выученный факт
-    if (roll < 0.28) {
+    // добрая новость / выученный факт — делимся знаниями чаще
+    if (roll < 0.4) {
       const facts = s.memories.filter(m => m.kind === 'факт');
       if (facts.length && Math.random() < 0.65) {
         const f = facts[Math.floor(Math.random() * facts.length)];
@@ -256,10 +256,10 @@ class Engine {
       return `Добрая новость из мира: ${good.title.toLowerCase()} — ${good.text.toLowerCase()}`;
     }
 
-    // воспоминание, сгенерированное нейросетью
-    if (roll < 0.5) {
+    // мысль, сгенерированная нейросетью — питомец делится своими размышлениями
+    if (roll < 0.62) {
       const t = this.neuroThought();
-      if (t) return Math.random() < 0.5 ? `Я тут вспомнил: ${t.charAt(0).toLowerCase() + t.slice(1)}.` : `Знаешь, о чём я думаю? ${t}`;
+      if (t) return Math.random() < 0.5 ? `Я тут подумал: ${t.charAt(0).toLowerCase() + t.slice(1)}.` : `Знаешь, о чём я размышляю? ${t}`;
     }
     return null;
   }
@@ -814,29 +814,86 @@ class Engine {
     this.commit();
   }
 
+  /* ---------- RAG: знания из Википедии на лету ---------- */
+
+  /** Похож ли вопрос хозяина на запрос знаний («кто такой…», «почему…»). */
+  private static KNOWLEDGE_RE = /(кто (такой|такая|такое|такие)|что такое|что за|почему|зачем|откуда|как (работает|устроен|устроена|появил|образовал)|где (жив[уе]т|живут|обита[ею]т|находит|располаг)|расскажи (про|о |об )|знаешь (ли )?(что-нибудь )?(про|об |о )|слышал(а)? (про|об |о )|читал(а)? (про|об |о )|в ч[её]м разница|чем отличается)/i;
+
+  /** Стоп-слова для извлечения темы. ВАЖНО: в JS `\b` не работает с кириллицей,
+   *  поэтому фильтруем через Set, а не регуляркой. */
+  private static STOPWORDS = new Set([
+    'кто', 'что', 'какой', 'какая', 'какое', 'какие', 'почему', 'зачем', 'где', 'когда', 'сколько', 'откуда',
+    'такой', 'такая', 'такое', 'такие', 'расскажи', 'расскажите', 'про', 'обо', 'знаешь', 'знаете',
+    'мне', 'нам', 'тебе', 'тебя', 'пожалуйста', 'есть', 'был', 'была', 'было', 'были', 'работает', 'устроен',
+    'скажи', 'спроси', 'объясни',
+    'устроена', 'устроено', 'появился', 'появилась', 'образовалась', 'образовался', 'чем', 'чём', 'разница',
+    'отличается', 'слышал', 'слышала', 'читал', 'читала', 'можно', 'будет', 'означает', 'значит', 'это', 'этот',
+    'эта', 'эти', 'вот', 'давай', 'ещё', 'тоже', 'очень', 'просто', 'вообще', 'как', 'ли', 'нибудь', 'что-нибудь',
+    'ты', 'вы', 'меня', 'себя', 'него', 'неё', 'них', 'живут', 'живет', 'живёт', 'обитает', 'обитают',
+    'находится', 'располагается',
+  ]);
+
+  /** Извлечь тему из вопроса, убрав «вопросительные» и служебные слова. */
+  private extractTopic(text: string): string {
+    const words = text.toLowerCase()
+      .replace(/[?.!,;:()«»"'-]+/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !Engine.STOPWORDS.has(w));
+    return words.slice(0, 4).join(' ');
+  }
+
+  /** Если вопрос похож на запрос знаний — найти статью в Википедии.
+   *  Поиск идёт по ИСПРАВЛЕННОМУ тексту: опечатки («скожи»→«скажи») не должны
+   *  мешать ни распознаванию намерения, ни извлечению темы. */
+  private async webKnowledge(userText: string): Promise<{ title: string; text: string } | null> {
+    const fixed = correctText(userText);
+    if (!Engine.KNOWLEDGE_RE.test(fixed)) return null;
+    const topic = this.extractTopic(fixed);
+    if (!topic) return null;
+    return searchWiki(topic);
+  }
+
   /* ---------- болталка ---------- */
-  sendChat(text: string) {
+  async sendChat(text: string) {
     const s = this.state; const p = s.pet; if (!p) return;
     s.chat.push({ id: uid(), from: 'owner', text, at: Date.now() });
     this.bumpCounter('talk');
-    const brain = chatBrain(text, s);
-    if (brain.save) this.addMemory(brain.save.kind, brain.save.text);
-    if (brain.ownerName) { s.owner.name = brain.ownerName; }
-    if (brain.favorite && !s.owner.favorites.includes(brain.favorite)) s.owner.favorites.push(brain.favorite);
-    if (brain.save?.kind === 'обещание') s.owner.promises.push(brain.save.text);
-    if (brain.moodDelta) p.stats.mood = clamp(p.stats.mood + brain.moodDelta, 0, 100);
-    // нейросеть учится на том, что написал хозяин, и что ответит питомец
-    this.brainLearn([text, ...brain.lines]);
+    this.save(); this.emit(); // сообщение хозяина показываем сразу
+
+    // 1) знания из сети (RAG): тема → статья в Википедии → резюме
+    // 2) движок намерений: контекст разговора, факты, few-shot, встречные вопросы
+    // Всё обёрнуто в try/catch: питомец ОБЯЗАН ответить, иначе зависнет «печатает…»
+    let fact: { title: string; text: string } | null = null;
+    let lines: string[];
+    let brain: ReturnType<typeof chatBrain> | null = null;
+    try {
+      fact = await this.webKnowledge(text);
+      brain = chatBrain(text, s, fact);
+      lines = brain.lines;
+    } catch (e) {
+      console.error('Люмос: ошибка в чат-мозге', e);
+      lines = [];
+    }
+    if (!lines.length) lines = ['Ой… я на секунду запутался в мыслях. Расскажешь ещё раз?'];
+
+    if (brain?.save) this.addMemory(brain.save.kind, brain.save.text);
+    if (brain?.ownerName) { s.owner.name = brain.ownerName; }
+    if (brain?.favorite && !s.owner.favorites.includes(brain.favorite)) s.owner.favorites.push(brain.favorite);
+    if (brain?.save?.kind === 'обещание') s.owner.promises.push(brain.save.text);
+    if (brain?.moodDelta) p.stats.mood = clamp(p.stats.mood + brain.moodDelta, 0, 100);
+    // нейросеть учится на том, что написал хозяин, что ответил питомец,
+    // и на найденном факте — так знания «впитываются» в её словарь
+    this.brainLearn([text, ...lines, ...(fact ? [`${fact.title}: ${fact.text}`] : [])]);
     s.chat = s.chat.slice(-60);
     this.growSkill('эмпатия', 0.4);
     this.save(); this.emit();
 
     // иногда питомец добавляет «ассоциацию из головы» — фразу от нейросети,
     // начатую с ключевых слов хозяина. Так разговор становится живее.
-    const replyLines = [...brain.lines];
-    if (Math.random() < 0.4) {
+    const replyLines = [...lines];
+    if (Math.random() < 0.3) {
       const assoc = this.neuroThought(text);
-      if (assoc && assoc.length > 6) {
+      if (assoc && assoc.length > 12) {
         replyLines.push(Math.random() < 0.5
           ? `Кстати, ${assoc.charAt(0).toLowerCase() + assoc.slice(1)}.`
           : `…и знаешь что? ${assoc}`);
@@ -850,7 +907,7 @@ class Engine {
         if (i === 0) this.setBubble(line.length > 60 ? line.slice(0, 57) + '…' : line);
         sfx.bubble();
         this.save(); this.emit();
-      }, 700 + i * 1300);
+      }, 400 + i * 900);
     });
   }
 
