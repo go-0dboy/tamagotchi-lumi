@@ -123,6 +123,89 @@ function paraphrase(extract: string): string {
   return core.charAt(0).toUpperCase() + core.slice(1);
 }
 
+/* ============================================================
+ * Проверка орфографии: школьные правила (жи-ши, чу-щу, ча-ща)
+ * + словарь частых ошибок. Возвращает исправленный текст
+ * (по нему распознаются намерения) и список ошибок с пояснением.
+ * ============================================================ */
+const SPELL_RULES: Array<{ re: RegExp; fix: (w: string) => string; rule: string }> = [
+  { re: /чю/, fix: w => w.replace(/чю/g, 'чу'), rule: 'после «ч» пишется «у», а не «ю» (чудо, хочу)' },
+  { re: /щю/, fix: w => w.replace(/щю/g, 'щу'), rule: 'после «щ» пишется «у» (щука, ищу)' },
+  { re: /жы/, fix: w => w.replace(/жы/g, 'жи'), rule: 'после «ж» пишется «и» (жизнь, жираф)' },
+  { re: /шы/, fix: w => w.replace(/шы/g, 'ши'), rule: 'после «ш» пишется «и» (шишка, машина)' },
+  { re: /чя/, fix: w => w.replace(/чя/g, 'ча'), rule: 'после «ч» пишется «а» (часы, чай)' },
+  { re: /щя/, fix: w => w.replace(/щя/g, 'ща'), rule: 'после «щ» пишется «а» (роща, пища)' },
+];
+const MISSPELLED: Record<string, { right: string; rule: string }> = {
+  'зделаю': { right: 'сделаю', rule: 'приставка «с-», а не «з-»' },
+  'зделать': { right: 'сделать', rule: 'приставка «с-», а не «з-»' },
+  'зделал': { right: 'сделал', rule: 'приставка «с-», а не «з-»' },
+  'сдесь': { right: 'здесь', rule: 'в слове «здесь» пишется «з», а не «с»' },
+  'тибе': { right: 'тебе', rule: 'проверочное слово — «тебя»' },
+  'незнаю': { right: 'не знаю', rule: '«не» с глаголами пишется раздельно' },
+  'немогу': { right: 'не могу', rule: '«не» с глаголами пишется раздельно' },
+  'нехочу': { right: 'не хочу', rule: '«не» с глаголами пишется раздельно' },
+  'ваще': { right: 'вообще', rule: 'правильно — «вообще»' },
+  'ща': { right: 'сейчас', rule: 'это разговорное сокращение, правильно — «сейчас»' },
+  'здраствуйте': { right: 'здравствуйте', rule: 'в слове «здравствуйте» есть непроизносимая «в»' },
+  'чуство': { right: 'чувство', rule: 'в слове «чувство» есть непроизносимая «в»' },
+  'чуствую': { right: 'чувствую', rule: 'в слове «чувствую» есть непроизносимая «в»' },
+  'чуствует': { right: 'чувствует', rule: 'в слове «чувствует» есть непроизносимая «в»' },
+  'пожалуста': { right: 'пожалуйста', rule: 'в слове «пожалуйста» есть непроизносимая «й» — «пожа-луй-ста»' },
+};
+export function checkSpelling(text: string): { normalized: string; corrections: Array<{ wrong: string; right: string; rule: string }> } {
+  const corrections: Array<{ wrong: string; right: string; rule: string }> = [];
+  const parts = text.split(/(\s+)/);
+  const out = parts.map(tok => {
+    if (!/[а-яёa-z]/i.test(tok)) return tok;
+    const low = tok.toLowerCase();
+    if (MISSPELLED[low]) {
+      corrections.push({ wrong: tok, right: MISSPELLED[low].right, rule: MISSPELLED[low].rule });
+      return MISSPELLED[low].right;
+    }
+    for (const r of SPELL_RULES) {
+      if (r.re.test(low)) {
+        corrections.push({ wrong: tok, right: r.fix(low), rule: r.rule });
+        return r.fix(low);
+      }
+    }
+    return tok;
+  });
+  return { normalized: out.join('').toLowerCase().trim(), corrections };
+}
+
+/* ============================================================
+ * Творчество: цитаты, сказки, песенки и стихи «своего сочинения».
+ * ============================================================ */
+const QUOTES = [
+  { text: 'Красота спасёт мир', author: 'Фёдор Достоевский' },
+  { text: 'Мы в ответе за тех, кого приручили', author: 'Антуан де Сент-Экзюпери' },
+  { text: 'Счастье — это когда тебя понимают', author: 'из фильма «Доживём до понедельника»' },
+  { text: 'Знание — сила', author: 'Фрэнсис Бэкон' },
+  { text: 'Всё будет хорошо', author: 'народная мудрость' },
+];
+function makeTale(petName: string): string {
+  const hero = R(['маленький светлячок', 'отважный ёжик', 'любопытная снежинка', 'добрый кит', 'мечтательный одуванчик']);
+  const place = R(DREAM_PLACES);
+  const quest = R(['найти пропавшую звезду', 'вернуть морю его жемчужину', 'разбудить уснувшее солнце', 'собрать рассыпавшуюся радугу', 'научить луну улыбаться']);
+  const friend = R(['старую мудрую сову', 'весёлого сверчка', 'тихое облако', 'храброго краба']);
+  return `Жил-был ${hero}. Однажды он отправился в ${place}, чтобы ${quest}. По дороге он встретил ${friend}, и вместе у них всё получилось. А ${petName} досказал эту сказку — потому что все хорошие сказки заканчиваются теплом.`;
+}
+function makeSong(petName: string): string {
+  return R([
+    `Мур-мур-мур, луна в окне, ${petName} думает о тебе! Звёзды водят хоровод, кто не спит — тот запоёт!`,
+    `Лапки-лапки-топотушки, мы с тобой всегда вдвоём. Пусть блестят твои веснушки, а мы песенку споём!`,
+    `Светлячок, гори-гори, все печали забери. А взамен я подарю тебе искру и зарю!`,
+  ]);
+}
+function makePoem(petName: string): string {
+  return R([
+    `Тихо падает снежинка, спит на ветке воробей. ${petName} смотрит на картинку — мир становится добрей.`,
+    `За окном шумит рябина, в чашке стынет тёплый чай. Для печали нет причины — просто рядом побывай.`,
+    `Звёзды сыплются горошком, месяц вышел погулять. Посидим с тобой немножко, будем тихо помечтать.`,
+  ]);
+}
+
 /* Few-shot примеры — образцовые диалоговые шаблоны. Они задают тон ответам
    питомца и впитываются нейросетью при онлайн-обучении (engine.brainLearn). */
 const FEW_SHOT: Array<{ re: RegExp; a: string[] }> = [
@@ -136,7 +219,11 @@ const FEW_SHOT: Array<{ re: RegExp; a: string[] }> = [
 ];
 
 export function chatBrain(text: string, state: GameState, fact?: { title: string; text: string } | null): BrainResult {
-  const t = text.toLowerCase().trim();
+  /* орфография: распознаём намерения по исправленному тексту,
+     а найденные ошибки потом мягко подсказываем хозяину */
+  const spell = checkSpelling(text);
+  const corrections = spell.corrections;
+  const t = spell.normalized;
   const pet = state.pet!;
   const petName = pet.name;
   const ownerName = state.owner.name ? `, ${state.owner.name}` : '';
@@ -211,6 +298,46 @@ export function chatBrain(text: string, state: GameState, fact?: { title: string
       save: { kind: 'факт', text: `${fact.title}: ${fact.text.slice(0, 90)}` },
       moodDelta: 3,
     };
+  }
+
+  /* ---------- где живут / где обитает (без интернета — по памяти) ---------- */
+  if (/(где (жив[уе]т|живут|обита[ею]т|находит|располаг))/.test(t)) {
+    const mem = state.memories.filter(mf => mf.kind === 'факт');
+    if (mem.length) return { lines: [`Я недавно читал об этом! ${R(mem).text}`, 'Хочешь, поищу точнее, когда появится интернет?'], moodDelta: 2 };
+    return { lines: ['Хм, точно не помню, где именно. Когда будет интернет — спроси ещё раз, я мигом найду статью в энциклопедии!'], moodDelta: 1 };
+  }
+
+  /* ---------- поделись мыслями / о чём думаешь ---------- */
+  if (/(поделись мыслями|о ч[её]м (ты )?думаешь|твои мысли|что (ты )?думаешь|расскажи (свои )?мысли|помечтаем)/.test(t)) {
+    const facts = state.memories.filter(mf => mf.kind === 'факт');
+    if (facts.length && Math.random() < 0.6) {
+      return { lines: [`Знаешь, я всё думаю о том, что недавно узнал: ${R(facts).text.toLowerCase()}`, 'Мир такой большой и интересный! О чём ещё помечтаем вместе?'], moodDelta: 2 };
+    }
+    return { lines: [R(IDLE_THOUGHTS), 'Вот такие у меня мысли. Хочешь, помечтаем вместе?'], moodDelta: 2 };
+  }
+
+  /* ---------- кто сказал / чья это фраза ---------- */
+  if (/(кто (это )?сказал|чья (это )?(фраза|цитата)|кому принадлеж|кто автор)/.test(t)) {
+    const q = R(QUOTES);
+    return {
+      lines: [`«${q.text}» — это ${q.author}.`, 'Я собираю красивые фразы в свой блокнотик. Хочешь, расскажу ещё одну?'],
+      save: { kind: 'факт', text: `${q.author}: «${q.text}»` }, moodDelta: 2,
+    };
+  }
+
+  /* ---------- сказка ---------- */
+  if (/(расскажи (мне )?)?сказк/.test(t)) {
+    return { lines: [makeTale(petName), 'Вот и сказочке конец, а кто слушал — молодец!'], moodDelta: 3 };
+  }
+
+  /* ---------- песенка ---------- */
+  if (/(спой( мне)?|песенку|песня)/.test(t)) {
+    return { lines: ['🎵 ' + makeSong(petName) + ' 🎵', 'Я сам сочинил! Ну… почти сам. Немножко подсмотрел у сверчков.'], moodDelta: 3 };
+  }
+
+  /* ---------- стихи ---------- */
+  if (/(стихи|стишок|стихотворение|расскажи стих)/.test(t)) {
+    return { lines: [makePoem(petName), 'Я поэт, и этим горд! Ну, по крайней мере, до ужина.'], moodDelta: 3 };
   }
 
   let m = t.match(/(?:меня зовут|мо[её] имя|звать меня)\s+([a-zа-яё]+(?:-[a-zа-яё]+)?)/i);
@@ -345,8 +472,8 @@ export function chatBrain(text: string, state: GameState, fact?: { title: string
     return { lines: ['♪ Ла-ла-ла, звёзды-светлячки, ♪ ♪ спать легли в свои сундучки… ♪', 'Это моя колыбельная! Я сочинил её сам. Ну… почти сам.'] };
   }
 
-  /* ---------- расскажи факт / что-нибудь интересное ---------- */
-  if (/(расскажи факт|какой-нибудь факт|что-нибудь интересное|расскажи что-нибудь|удиви меня)/.test(t)) {
+  /* ---------- расскажи факт / что-нибудь интересное / о чём-нибудь ---------- */
+  if (/(расскажи (мне )?(факт|что-нибудь|что нибудь|о ч[её]м-?нибудь|про что-нибудь|интересн)|какой-нибудь факт|что-нибудь интересное|удиви меня)/.test(t)) {
     const f = FALLBACK_FACTS[Math.floor(Math.random() * FALLBACK_FACTS.length)];
     return {
       lines: [`О! Я недавно узнал: ${f.title.toLowerCase()}. ${f.text}`, 'Правда, здорово? Я теперь самый умный малыш в округе!'],
@@ -379,6 +506,19 @@ export function chatBrain(text: string, state: GameState, fact?: { title: string
     if (ex.re.test(t)) return { lines: [...ex.a], moodDelta: 1 };
   }
 
+  /* ---------- орфография: намерение не распознано, а в тексте есть ошибки —
+     мягко подсказываем, как правильно, и просим повторить ---------- */
+  if (corrections.length) {
+    const c = corrections[0];
+    return {
+      lines: [
+        `Ой, кажется, в слове «${c.wrong}» ошибка. Правильно — «${c.right}», потому что ${c.rule}.`,
+        'Я из-за этого не совсем разобрал, что ты имеешь в виду. Повторишь, пожалуйста? Мне очень хочется понять!',
+      ],
+      moodDelta: 1,
+    };
+  }
+
   const recall: string[] = [];
   if (state.memories.length > 2 && Math.random() < 0.3) {
     const mem = R(state.memories);
@@ -406,13 +546,20 @@ export function proactiveLine(state: GameState): string {
   if (p.stats.energy < 30) return R(TIRED_LINES);
   if (p.bond > 70 && Math.random() < 0.4) return R(THANKS_LINES).replace('{owner}', ownerName);
   if (p.trust < 45) return R(LONELY_LINES);
-  if (state.memories.length > 3 && Math.random() < 0.3) {
+  if (state.quests.some(q => !q.claimed && q.progress >= q.target)) return 'Кажется, у нас есть выполненное задание! Загляни в ритуалы.';
+
+  /* чаще делимся выученными знаниями и мыслями — питомец «живёт» и размышляет */
+  const roll = Math.random();
+  const facts = state.memories.filter(m => m.kind === 'факт');
+  if (facts.length && roll < 0.4) {
+    return `А знаешь, я тут вычитал: ${R(facts).text.toLowerCase()} Мир удивительный, правда${ownerName}?`;
+  }
+  if (roll < 0.65) return R(IDLE_THOUGHTS);
+  if (state.memories.length > 3 && roll < 0.8) {
     const mem = state.memories[Math.floor(Math.random() * state.memories.length)];
     return `Я тут вспомнил: ${mem.text.toLowerCase()}. Хороший был момент.`;
   }
-  if (state.quests.some(q => !q.claimed && q.progress >= q.target)) return 'Кажется, у нас есть выполненное задание! Загляни в ритуалы.';
-  if (Math.random() < 0.35) return R(QUESTIONS_FOR_OWNER);
-  return R(IDLE_THOUGHTS);
+  return R(QUESTIONS_FOR_OWNER);
 }
 
 export function welcomeLine(awayMs: number, trust: number, petName: string): string {

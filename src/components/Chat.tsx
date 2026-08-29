@@ -77,10 +77,10 @@ export default function ChatPanel({ state }: { state: GameState }) {
       setTyping(false);
     }
   }, [state.chat, typing]);
-  /* страховка: даже если ответ потерялся, точки гаснут максимум через 15 с */
+  /* страховка: даже если ответ потерялся, точки гаснут максимум через 8 с */
   useEffect(() => {
     if (!typing) return;
-    const t = setTimeout(() => setTyping(false), 15000);
+    const t = setTimeout(() => setTyping(false), 8000);
     return () => clearTimeout(t);
   }, [typing, state.chat.length]);
 

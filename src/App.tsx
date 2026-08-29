@@ -177,16 +177,6 @@ function Game() {
             {pet.sleeping && <span className="chip absolute top-2.5 sm:top-3 right-2.5 sm:right-3 z-20 bg-night-900/60 text-sky"><Icon name="sleep" className="w-3.5 h-3.5" />спит</span>}
 
             {/* реплика — закреплена сверху сцены: никогда не вылетает за край */}
-            {s.bubble && (
-              <div className="absolute top-11 sm:top-12 inset-x-0 flex justify-center z-30 pointer-events-none px-3">
-                <div key={s.bubble.at} className="anim-bubble max-w-[min(300px,88%)]">
-                  <div className="bg-cream text-night-900 px-3.5 py-2.5 rounded-2xl rounded-bl-md text-[11.5px] sm:text-[12.5px] font-extrabold leading-snug shadow-2xl">
-                    {s.bubble.text}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* питомец */}
             {pet.transcended ? (
               <div className="absolute inset-x-0 bottom-[16%] flex flex-col items-center gap-4 z-10 px-6">
@@ -200,8 +190,18 @@ function Game() {
               </div>
             ) : (
               <div className="absolute inset-x-0 bottom-[84px] sm:bottom-[92px] lg:bottom-[70px] flex justify-center z-10">
-                <div key={squishAt} className={squishAt ? 'anim-squish' : ''}>
-                  <PetSprite pet={pet} size="min(50vw, 240px)" onStroke={() => engine.petStroke()} />
+                <div className="relative">
+                  {/* реплика привязана к питомцу — облачко над головой */}
+                  {s.bubble && (
+                    <div key={s.bubble.at} className="anim-bubble absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-max max-w-[260px] z-20 pointer-events-none">
+                      <div className="bg-cream text-night-900 px-3.5 py-2.5 rounded-2xl rounded-bl-md text-[11.5px] sm:text-[12.5px] font-extrabold leading-snug shadow-2xl">
+                        {s.bubble.text}
+                      </div>
+                    </div>
+                  )}
+                  <div key={squishAt} className={squishAt ? 'anim-squish' : ''}>
+                    <PetSprite pet={pet} size="min(50vw, 240px)" onStroke={() => engine.petStroke()} />
+                  </div>
                 </div>
               </div>
             )}
