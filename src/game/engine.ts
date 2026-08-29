@@ -7,6 +7,7 @@ import type { GameState, Pet, MemoryItem, OfflineEvent, LegacyEntry } from './ty
 import { generateDNA, generatePersonality, mulberry32, pick, uid, speciesOf, RARITY_BONUS } from './dna';
 import { FOODS, SHOP, KEEPSAKES, QUEST_POOL, SKILLS, TRAIT_THRESHOLD } from './content';
 import { makeDreamText, dreamGiftId, makeDiaryText, MOOD_WORDS, OFFLINE_EVENTS, chatBrain, welcomeLine, WORDS, correctText } from './speech';
+import { purr, thud, celebrate, tick } from '../native/haptics';
 import { sfx, setSoundEnabled } from './sound';
 import { MiniLM, baseCorpus } from './neuro';
 import { FALLBACK_FACTS, fetchWikiFact, searchWiki } from './knowledge';
@@ -495,6 +496,7 @@ class Engine {
       this.state.coins += 15;
       this.setBubble(`Уровень ${p.growth.level}! Я расту, как тесто на дрожжах из звёздной пыли.`);
       sfx.levelup();
+      void celebrate();
       need = 80 + p.growth.level * 40;
     }
   }
@@ -524,6 +526,7 @@ class Engine {
     this.bumpCounter('feed');
     this.addXp(2);
     sfx.eat();
+    void thud();
     if (liked) this.setBubble(`Ммм! ${food.name} — моё любимое! Ты знаешь путь к моему сердцу.`);
     else if (disliked) this.setBubble(`Спасибо… но ${food.name} — не совсем моё. Я съел. Честно.`);
     else this.setBubble(`Ням! ${food.name}. Вкусно почти до слёз.`);
@@ -551,6 +554,7 @@ class Engine {
       this.setBubble(lines[Math.floor(Math.random() * lines.length)]);
     }
     sfx.purr();
+    void purr();
     this.commit();
   }
 
@@ -564,6 +568,7 @@ class Engine {
     this.state.fx = { kind: 'clean', at: Date.now() };
     this.setBubble('Вжух-вжух! Мётла танцует, пыль разбегается!');
     sfx.sparkle();
+    void thud();
     this.commit();
     return { ok: true, msg: 'В комнате стало чище' };
   }
@@ -582,6 +587,7 @@ class Engine {
     s.fx = { kind: 'bath', at: Date.now() };
     this.setBubble('Буль-буль-буль! Я теперь пахну облаком и немножко ромашкой.');
     sfx.splash();
+    void thud();
     this.commit();
     return { ok: true, msg: `${p.name} выкупан и сияет!` };
   }
@@ -727,6 +733,7 @@ class Engine {
     this.addMemory('подарок', `Мне подарили: ${name}`);
     this.setBubble(`${name}?! Это мне? Я положу его в самое надёжное место. В сердце.`);
     sfx.chime();
+    void celebrate();
     this.commit();
     return { ok: true, msg: `${p.name} в восторге от подарка!` };
   }
@@ -779,6 +786,7 @@ class Engine {
     s.coins += reward;
     this.setBubble(`Ритуал выполнен! +${reward} искр. Мы с тобой — отличная команда.`);
     sfx.coin();
+    void celebrate();
     this.commit();
   }
 
@@ -856,6 +864,7 @@ class Engine {
   /* ---------- болталка ---------- */
   async sendChat(text: string) {
     const s = this.state; const p = s.pet; if (!p) return;
+    void tick();
     s.chat.push({ id: uid(), from: 'owner', text, at: Date.now() });
     this.bumpCounter('talk');
     this.save(); this.emit(); // сообщение хозяина показываем сразу

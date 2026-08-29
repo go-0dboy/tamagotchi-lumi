@@ -1,0 +1,18 @@
+{
+  "name": "Люмос — карманный дух-компаньон",
+  "short_name": "Люмос",
+  "description": "Живой виртуальный питомец, который растёт, мечтает и помнит вас — даже когда вы не рядом.",
+  "lang": "ru",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c1220",
+  "theme_color": "#0c1220",
+  "categories": ["games", "entertainment", "lifestyle"],
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
