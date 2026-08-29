@@ -32,11 +32,10 @@ async function applyStatusBar() {
   try {
     await StatusBar.setStyle({ style: Style.Dark });     // светлые иконки на тёмном
     await StatusBar.setBackgroundColor({ color: phaseStatusBarColor() });
-    /* Android: статус-бар занимает СВОЁ место сверху, а не наезжает на меню.
-       На iOS остаёмся в оверлее — «чёлку» компенсирует env(safe-area-inset-top) в CSS. */
-    if (Capacitor.getPlatform() === 'android') {
-      await StatusBar.setOverlaysWebView({ overlay: false });
-    }
+    /* Отступы под статус-бар и панель «Назад/Домой» на Android даёт нативная
+       опция adjustMarginsForEdgeToEdge (capacitor.config.ts) — она оборачивает
+       WebView полями под системные insets, поэтому здесь ничего не трогаем.
+       На iOS «чёлку» и домашний индикатор компенсирует env(safe-area-*) в CSS. */
   } catch { /* noop */ }
 }
 

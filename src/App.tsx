@@ -248,8 +248,10 @@ function Game() {
         </div>
 
         {/* ================= ПАНЕЛЬ ================= */}
+        {/* нижний отступ учитывает системную панель Android («Назад/Домой»)
+            и домашний индикатор iPhone — контент никогда не уходит под них */}
         <div className="lg:h-full lg:overflow-y-auto no-scrollbar lg:pr-1">
-          <div className="p-3.5 sm:p-4 pb-8 lg:pb-6 space-y-3.5 max-w-xl lg:max-w-none mx-auto">
+          <div className="p-3.5 sm:p-4 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] lg:pb-6 space-y-3.5 max-w-xl lg:max-w-none mx-auto">
             <HUD pet={pet} coins={s.coins} weather={weather} soundOn={s.settings.sound}
               onToggleSound={() => engine.setSound(!s.settings.sound)} onOpenSettings={() => setShowSettings(true)} />
 
@@ -447,7 +449,7 @@ class LaunchBoundary extends Component<{ children: ReactNode }, { error: Error |
   render() {
     if (this.state.error) {
       return (
-        <div className="min-h-dvh flex p-4" style={{ background: 'radial-gradient(ellipse at 20% 0%, #1c2a52 0%, #10172b 55%)' }}>
+        <div className="min-h-dvh flex safe-p-4" style={{ background: 'radial-gradient(ellipse at 20% 0%, #1c2a52 0%, #10172b 55%)' }}>
           <div className="card max-w-md w-full m-auto p-6 text-center anim-fade-up">
             <div className="mx-auto mb-3 w-14 h-14 rounded-2xl flex items-center justify-center text-ember" style={{ background: 'rgba(255,143,125,0.12)' }}>
               <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 8v5" /><circle cx="12" cy="16.5" r="0.6" fill="currentColor" /></svg>

@@ -16,8 +16,14 @@ const config: CapacitorConfig = {
   /* папка со собранной игрокой (результат vite build) */
   webDir: 'dist',
 
-  /* Android: держим WebView живым, чтобы питомец «не умирал» при сворачивании */
+  /* Android:
+     • adjustMarginsForEdgeToEdge — WebView получает поля под системные панели:
+       строку статуса сверху и панель «Назад / Домой» снизу. Без этого на
+       Android 15 (SDK 35, принудительный edge-to-edge) нижние кнопки
+       наезжают на контент игры.
+     • держим WebView живым, чтобы питомец «не умирал» при сворачивании. */
   android: {
+    adjustMarginsForEdgeToEdge: 'always',
     buildOptions: {
       keystorePath: undefined,
     },

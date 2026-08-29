@@ -17,7 +17,7 @@ export default function Learning({ petName, onClose }: { petName: string; onClos
   const openQuiz = (s: string) => { setSubject(s); setStep('quiz'); sfx.pop(); };
 
   return (
-    <div className="fixed inset-0 z-50 flex p-4 bg-night-950/85 anim-fade overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex safe-p-4 bg-night-950/85 anim-fade overflow-y-auto" onClick={onClose}>
       <div className="card max-w-lg w-full m-auto p-4 sm:p-5 anim-pop" onClick={e => e.stopPropagation()}>
         {step === 'hub' && <Hub petName={petName} onClose={onClose} onQuiz={openQuiz} onFact={() => setStep('fact')} />}
         {step === 'quiz' && <Quiz subject={subject} petName={petName} onBack={() => setStep('hub')} />}

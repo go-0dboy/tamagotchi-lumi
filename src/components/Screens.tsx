@@ -35,7 +35,7 @@ export function Onboarding() {
 
   if (phase === 'intro') {
     return (
-      <div className="min-h-dvh flex p-4 overflow-y-auto">
+      <div className="min-h-dvh flex safe-p-4 overflow-y-auto">
         <div className="card p-5 sm:p-8 max-w-md w-full m-auto text-center anim-fade-up">
           <div className="mx-auto mb-4 w-16 h-16 rounded-3xl flex items-center justify-center text-butter" style={{ background: 'rgba(255,217,142,0.12)', animation: 'pulseSoft 3s ease-in-out infinite' }}>
             <Icon name="spark" className="w-8 h-8" />
@@ -81,7 +81,7 @@ export function Onboarding() {
   }
 
   return (
-    <div className="min-h-dvh flex p-4 overflow-y-auto">
+    <div className="min-h-dvh flex safe-p-4 overflow-y-auto">
       <div className="m-auto flex flex-col items-center">
         <p className="font-display font-bold text-cream/80 text-lg mb-1.5 sm:mb-2 anim-fade text-center">В траве что-то светится…</p>
         <p className="text-[12px] font-bold text-cream/45 mb-5 sm:mb-8 text-center">Постучите по яйцу {5 - taps > 0 ? `ещё ${5 - taps} раз(а)` : '— оно отвечает!'}</p>
@@ -161,8 +161,8 @@ export function RevealSheet({ pet, onDone, embedded = false }: { pet: Pet; onDon
     </div>
   );
 
-  if (embedded) return <div className="min-h-dvh flex p-4 overflow-y-auto">{body}</div>;
-  return <div className="fixed inset-0 z-50 flex p-4 overflow-y-auto bg-night-950/85 anim-fade">{body}</div>;
+  if (embedded) return <div className="min-h-dvh flex safe-p-4 overflow-y-auto">{body}</div>;
+  return <div className="fixed inset-0 z-50 flex safe-p-4 overflow-y-auto bg-night-950/85 anim-fade">{body}</div>;
 }
 
 /* ================= С ВОЗВРАЩЕНИЕМ ================= */
@@ -177,7 +177,7 @@ function formatAway(ms: number): string {
 
 export function WelcomeBack({ awayMs, events, line, petName }: { awayMs: number; events: OfflineEvent[]; line: string; petName: string }) {
   return (
-    <div className="fixed inset-0 z-50 flex p-4 bg-night-950/90 anim-fade overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex safe-p-4 bg-night-950/90 anim-fade overflow-y-auto">
       <div className="card max-w-md w-full m-auto p-4 sm:p-5 anim-pop">
         <div className="text-center mb-3">
           <p className="text-[11px] font-black text-cream/45 uppercase tracking-[0.2em]">С возвращением!</p>
@@ -211,7 +211,7 @@ export function WelcomeBack({ awayMs, events, line, petName }: { awayMs: number;
 /* ================= ПРОЩАНИЕ ================= */
 export function Farewell({ entry, onNewGen, onKeep }: { entry: LegacyEntry; onNewGen: () => void; onKeep: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex p-4 anim-fade overflow-y-auto" style={{ background: 'radial-gradient(ellipse at 50% 30%, #2a2547 0%, #0c1220 75%)' }}>
+    <div className="fixed inset-0 z-50 flex safe-p-4 anim-fade overflow-y-auto" style={{ background: 'radial-gradient(ellipse at 50% 30%, #2a2547 0%, #0c1220 75%)' }}>
       <div className="card max-w-md w-full m-auto p-5 sm:p-6 text-center anim-pop">
         <div className="mx-auto mb-3 w-20 h-20 rounded-full flex items-center justify-center anim-float"
           style={{ background: `${entry.colorPrimary}26`, boxShadow: `0 0 60px ${entry.colorPrimary}59` }}>
@@ -301,7 +301,7 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex p-4 bg-night-950/85 anim-fade overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex safe-p-4 bg-night-950/85 anim-fade overflow-y-auto">
       <div className="card max-w-md w-full m-auto p-4 sm:p-5 anim-pop space-y-3.5 max-h-[92dvh] overflow-y-auto no-scrollbar">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-lg font-bold text-butter">Настройки</h3>
