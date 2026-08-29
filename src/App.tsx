@@ -4,6 +4,7 @@
  * ============================================================ */
 import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from 'react';
 import { engine, timePhase, getWeather } from './game/engine';
+import { initializeNative } from './native/platform';
 import PetSprite from './components/PetSprite';
 import RoomScene from './components/Room';
 import HUD from './components/HUD';
@@ -49,6 +50,9 @@ function Game() {
 
   useEffect(() => {
     try { engine.start(); } catch (e) { console.error('Ошибка старта движка:', e); }
+    /* нативная платформа (Capacitor): сплэш, статус-бар, пуши, жизненный цикл.
+       В браузере — мгновенный no-op, веб-версия ничего не чувствует. */
+    void initializeNative();
     const unsub = engine.subscribe(() => { setS({ ...engine.state }); force(x => x + 1); });
     const loop = setInterval(() => engine.tick(), 4000);
     const saveInt = setInterval(() => engine.save(), 30000);

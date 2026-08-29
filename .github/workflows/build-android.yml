@@ -1,0 +1,68 @@
+# ============================================================
+# Сборка готового Android-приложения «Люмос» (.apk / .aab).
+#
+# Как это работает:
+#   1. Собираем веб-бандл игры (vite build, относительные пути).
+#   2. Capacitor оборачивает его в нативный Android-проект.
+#   3. Gradle собирает установочный APK.
+#   4. APK выкладывается как артефакт — его можно скачать и
+#      установить на телефон прямо из вкладки Actions.
+#
+# Запускается вручную (Actions → Build Android → Run workflow)
+# и автоматически при пуше тега вида v* (для релизов).
+# ============================================================
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Java 17 (для Gradle)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle
+        run: npm run build -- --base=./
+
+      - name: Add Android platform (Capacitor)
+        run: npx cap add android
+
+      - name: Sync web assets into Android project
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lumos-android-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
