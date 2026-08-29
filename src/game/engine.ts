@@ -9,7 +9,7 @@ import { FOODS, SHOP, KEEPSAKES, QUEST_POOL, SKILLS, TRAIT_THRESHOLD } from './c
 import { makeDreamText, dreamGiftId, makeDiaryText, MOOD_WORDS, OFFLINE_EVENTS, chatBrain, welcomeLine, WORDS } from './speech';
 import { sfx, setSoundEnabled } from './sound';
 import { MiniLM, baseCorpus } from './neuro';
-import { FALLBACK_FACTS, fetchWikiFact } from './knowledge';
+import { FALLBACK_FACTS, fetchWikiFact, searchWiki } from './knowledge';
 
 const KEY = 'lumos.save.v1';
 const BRAIN_KEY = 'lumos.brain.v1';
@@ -814,19 +814,46 @@ class Engine {
     this.commit();
   }
 
+  /* ---------- RAG: знания из Википедии на лету ---------- */
+
+  /** Похож ли вопрос хозяина на запрос знаний («кто такой…», «почему…»). */
+  private static KNOWLEDGE_RE = /(кто (такой|такая|такое|такие)|что такое|что за|почему|зачем|откуда|как (работает|устроен|устроена|появил|образовал)|расскажи (про|о |об )|знаешь (ли ты )?(кто|что|почему|где|когда)|в ч[её]м разница|чем отличается)/i;
+
+  /** Извлечь тему из вопроса, убрав «вопросительные» слова. */
+  private extractTopic(text: string): string {
+    const cleaned = text.toLowerCase()
+      .replace(/\b(кто|что|какой|какая|какие|почему|зачем|где|когда|сколько|откуда|такой|такая|такое|такие|расскажи|расскажите|про|об|о|знаешь|знаете|ли|мне|нам|ты|вы|пожалуйста|есть|был|была|было|работает|устроен|устроена|появился|появилась|образовалась|в|ч[её]м|разница|отличается)\b/g, ' ')
+      .replace(/[?.!,;:()«»"']+/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2);
+    return cleaned.slice(0, 4).join(' ');
+  }
+
+  /** Если вопрос похож на запрос знаний — найти статью в Википедии. */
+  private async webKnowledge(userText: string): Promise<{ title: string; text: string } | null> {
+    if (!Engine.KNOWLEDGE_RE.test(userText)) return null;
+    const topic = this.extractTopic(userText);
+    if (!topic) return null;
+    return searchWiki(topic);
+  }
+
   /* ---------- болталка ---------- */
-  sendChat(text: string) {
+  async sendChat(text: string) {
     const s = this.state; const p = s.pet; if (!p) return;
     s.chat.push({ id: uid(), from: 'owner', text, at: Date.now() });
     this.bumpCounter('talk');
-    const brain = chatBrain(text, s);
+    // 1) знания из сети (RAG): тема → статья в Википедии → резюме
+    const fact = await this.webKnowledge(text);
+    // 2) движок намерений: контекст разговора, факты, few-shot, встречные вопросы
+    const brain = chatBrain(text, s, fact);
     if (brain.save) this.addMemory(brain.save.kind, brain.save.text);
     if (brain.ownerName) { s.owner.name = brain.ownerName; }
     if (brain.favorite && !s.owner.favorites.includes(brain.favorite)) s.owner.favorites.push(brain.favorite);
     if (brain.save?.kind === 'обещание') s.owner.promises.push(brain.save.text);
     if (brain.moodDelta) p.stats.mood = clamp(p.stats.mood + brain.moodDelta, 0, 100);
-    // нейросеть учится на том, что написал хозяин, и что ответит питомец
-    this.brainLearn([text, ...brain.lines]);
+    // нейросеть учится на том, что написал хозяин, что ответил питомец,
+    // и на найденном факте — так знания «впитываются» в её словарь
+    this.brainLearn([text, ...brain.lines, ...(fact ? [`${fact.title}: ${fact.text}`] : [])]);
     s.chat = s.chat.slice(-60);
     this.growSkill('эмпатия', 0.4);
     this.save(); this.emit();

@@ -103,3 +103,40 @@ export async function fetchWikiFact(): Promise<{ title: string; text: string } |
     return null;
   }
 }
+
+/**
+ * RAG-поиск: найти статью в русской Википедии по запросу хозяина
+ * и вернуть короткое резюме. Питомец отвечает по фактам,
+ * а не выдумывает («кто такой Пушкин?» → реальная статья).
+ */
+export async function searchWiki(query: string): Promise<{ title: string; text: string } | null> {
+  const q = query.trim();
+  if (!q) return null;
+  try {
+    // шаг 1 — поиск статьи по теме
+    const c1 = new AbortController();
+    const t1 = setTimeout(() => c1.abort(), 6000);
+    const sres = await fetch(
+      `https://ru.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&srlimit=1&format=json&origin=*`,
+      { signal: c1.signal },
+    );
+    clearTimeout(t1);
+    if (!sres.ok) return null;
+    const sd = await sres.json();
+    const title = sd?.query?.search?.[0]?.title;
+    if (!title || typeof title !== 'string') return null;
+
+    // шаг 2 — короткое резюме статьи
+    const c2 = new AbortController();
+    const t2 = setTimeout(() => c2.abort(), 6000);
+    const rres = await fetch(`https://ru.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`, { signal: c2.signal });
+    clearTimeout(t2);
+    if (!rres.ok) return null;
+    const d = await rres.json();
+    const extract = d?.extract ? String(d.extract).split('\n')[0].slice(0, 420) : '';
+    if (!extract) return null;
+    return { title: String(d.title ?? title), text: extract };
+  } catch {
+    return null; // нет интернета — питомец ответит из головы
+  }
+}
