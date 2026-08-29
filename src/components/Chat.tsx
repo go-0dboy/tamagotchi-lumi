@@ -22,9 +22,19 @@ export default function ChatPanel({ state }: { state: GameState }) {
 
   const pet = state.pet!;
 
+  /* автопрокрутка к последнему сообщению. Следим за id последнего сообщения,
+     а не за длиной: когда чат достигает 60 сообщений, длина перестаёт меняться
+     (старые обрезаются), и прокрутка по length больше не срабатывала. */
+  const lastMsgId = state.chat.length ? state.chat[state.chat.length - 1].id : '';
   useEffect(() => {
-    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
-  }, [state.chat.length]);
+    const el = logRef.current;
+    if (!el) return;
+    // двойной rAF: дожидаемся, пока новое сообщение отрисуется и обновится scrollHeight
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    }));
+    return () => cancelAnimationFrame(raf);
+  }, [lastMsgId]);
 
   /* дыхательная практика: вдох 4 — задержка 2 — выдох 6, 4 круга */
   useEffect(() => {

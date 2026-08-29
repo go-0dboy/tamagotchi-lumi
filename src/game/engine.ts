@@ -6,7 +6,7 @@
 import type { GameState, Pet, MemoryItem, OfflineEvent, LegacyEntry } from './types';
 import { generateDNA, generatePersonality, mulberry32, pick, uid, speciesOf, RARITY_BONUS } from './dna';
 import { FOODS, SHOP, KEEPSAKES, QUEST_POOL, SKILLS, TRAIT_THRESHOLD } from './content';
-import { makeDreamText, dreamGiftId, makeDiaryText, MOOD_WORDS, OFFLINE_EVENTS, chatBrain, welcomeLine, WORDS } from './speech';
+import { makeDreamText, dreamGiftId, makeDiaryText, MOOD_WORDS, OFFLINE_EVENTS, chatBrain, welcomeLine, WORDS, correctText } from './speech';
 import { sfx, setSoundEnabled } from './sound';
 import { MiniLM, baseCorpus } from './neuro';
 import { FALLBACK_FACTS, fetchWikiFact, searchWiki } from './knowledge';
@@ -825,6 +825,7 @@ class Engine {
     'кто', 'что', 'какой', 'какая', 'какое', 'какие', 'почему', 'зачем', 'где', 'когда', 'сколько', 'откуда',
     'такой', 'такая', 'такое', 'такие', 'расскажи', 'расскажите', 'про', 'обо', 'знаешь', 'знаете',
     'мне', 'нам', 'тебе', 'тебя', 'пожалуйста', 'есть', 'был', 'была', 'было', 'были', 'работает', 'устроен',
+    'скажи', 'спроси', 'объясни',
     'устроена', 'устроено', 'появился', 'появилась', 'образовалась', 'образовался', 'чем', 'чём', 'разница',
     'отличается', 'слышал', 'слышала', 'читал', 'читала', 'можно', 'будет', 'означает', 'значит', 'это', 'этот',
     'эта', 'эти', 'вот', 'давай', 'ещё', 'тоже', 'очень', 'просто', 'вообще', 'как', 'ли', 'нибудь', 'что-нибудь',
@@ -841,10 +842,13 @@ class Engine {
     return words.slice(0, 4).join(' ');
   }
 
-  /** Если вопрос похож на запрос знаний — найти статью в Википедии. */
+  /** Если вопрос похож на запрос знаний — найти статью в Википедии.
+   *  Поиск идёт по ИСПРАВЛЕННОМУ тексту: опечатки («скожи»→«скажи») не должны
+   *  мешать ни распознаванию намерения, ни извлечению темы. */
   private async webKnowledge(userText: string): Promise<{ title: string; text: string } | null> {
-    if (!Engine.KNOWLEDGE_RE.test(userText)) return null;
-    const topic = this.extractTopic(userText);
+    const fixed = correctText(userText);
+    if (!Engine.KNOWLEDGE_RE.test(fixed)) return null;
+    const topic = this.extractTopic(fixed);
     if (!topic) return null;
     return searchWiki(topic);
   }
