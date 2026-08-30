@@ -3,7 +3,7 @@
  * карточка встречи, «С возвращением», прощание, настройки.
  * Без confirm()/prompt() — всё работает в песочнице.
  * ============================================================ */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Pet, GameState, OfflineEvent, LegacyEntry } from '../game/types';
 import { engine } from '../game/engine';
 import { speciesOf, abilityOf, RARITY_COLOR } from '../game/dna';
@@ -243,6 +243,29 @@ export function Farewell({ entry, onNewGen, onKeep }: { entry: LegacyEntry; onNe
 }
 
 /* ================= НАСТРОЙКИ ================= */
+
+/** Скачать текст как файл (работает и в браузере, и в WebView). */
+function downloadFile(filename: string, text: string) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+}
+
+/** Прочитать текстовый файл, выбранный пользователем. */
+function readFileText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+}
+
 export function SettingsModal({ state, onClose }: { state: GameState; onClose: () => void }) {
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [showCode, setShowCode] = useState(false);
@@ -255,6 +278,8 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
   const [showBrainImport, setShowBrainImport] = useState(false);
   const [petName, setPetName] = useState(state.pet?.name ?? '');
   const [pwa, setPwa] = useState<PwaState>(getPwaState());
+  const saveFileRef = useRef<HTMLInputElement>(null);
+  const brainFileRef = useRef<HTMLInputElement>(null);
   const brain = engine.brainInfo();
   const flash = (text: string, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg(null), 2600); };
 
@@ -280,6 +305,37 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
     const ok = await promptInstall();
     if (ok) flash('Люмос установлен! Ищите его на главном экране.');
     else flash('Установка отменена — её можно повторить в любой момент', false);
+  };
+
+  /* ---------- сохранение в файл / загрузка из файла ---------- */
+  const dateStamp = () => new Date().toISOString().slice(0, 10);
+
+  const doDownloadSave = () => {
+    downloadFile(`lumos-save-${dateStamp()}.txt`, engine.exportSave());
+    flash('Файл сейва скачан!');
+  };
+  const onSaveFilePicked = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const text = (await readFileText(file)).trim();
+      if (engine.importSave(text)) flash('Сейв загружен из файла! С возвращением.');
+      else flash('Не удалось прочитать файл сейва — проверьте, что это файл Люмоса.', false);
+    } catch { flash('Не удалось прочитать файл.', false); }
+  };
+
+  const doDownloadBrain = () => {
+    const code = engine.exportBrain();
+    if (!code) { flash('Мозг ещё не вырос', false); return; }
+    downloadFile(`lumos-brain-${dateStamp()}.txt`, code);
+    flash('Файл модели мозга скачан!');
+  };
+  const onBrainFilePicked = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const text = (await readFileText(file)).trim();
+      if (engine.importBrain(text)) flash('Мозг загружен из файла! Питомец стал умнее.');
+      else flash('Не удалось прочитать файл модели — проверьте, что это модель Люмоса.', false);
+    } catch { flash('Не удалось прочитать файл.', false); }
   };
 
   const doExport = () => {
@@ -342,34 +398,34 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
           </div>
         )}
 
-        {/* установка игры как приложение (PWA) — только если браузер это умеет */}
-        {pwa.supported && (
-          <div className="card-soft p-3.5" style={{ borderColor: 'rgba(255,217,142,0.35)' }}>
-            <div className="flex items-center gap-2.5 text-cream/85 mb-1">
-              <Icon name="star" className="w-5 h-5 text-butter" />
-              <span className="text-[13px] font-extrabold">Люмос как приложение</span>
-            </div>
-            <p className="text-[10.5px] font-bold text-cream/45 leading-snug mb-2.5">
-              {pwa.installed
+        {/* установка игры как приложение (PWA / нативное) */}
+        <div className="card-soft p-3.5" style={{ borderColor: 'rgba(255,217,142,0.35)' }}>
+          <div className="flex items-center gap-2.5 text-cream/85 mb-1">
+            <Icon name="star" className="w-5 h-5 text-butter" />
+            <span className="text-[13px] font-extrabold">Люмос как приложение</span>
+          </div>
+          <p className="text-[10.5px] font-bold text-cream/45 leading-snug mb-2.5">
+            {pwa.nativeApp
+              ? 'Вы запустили нативное приложение (APK) — Люмос уже живёт на этом устройстве. Установка из браузера не нужна.'
+              : pwa.installed
                 ? 'Уже установлено — ищите на главном экране.'
                 : pwa.canInstall
                   ? 'Поставьте игру на главный экран: будет запускаться без адресной строки и работать офлайн.'
-                  : 'Браузер сам предложит установку, когда игра загрузится. На iPhone — «Поделиться» → «На экран Домой».'}
-            </p>
-            {pwa.installed ? (
-              <div className="flex items-center gap-2 text-mint">
-                <Icon name="check" className="w-4 h-4" />
-                <span className="text-[11px] font-extrabold">Установлено</span>
-              </div>
-            ) : pwa.canInstall ? (
-              <button className="btn btn-primary w-full !py-2.5 !text-xs" onClick={doInstallPwa}>
-                <Icon name="star" className="w-4 h-4" />Установить приложение
-              </button>
-            ) : (
-              <div className="chip !text-[10px] text-cream/40"><Icon name="info" className="w-3 h-3" />ожидает предложения браузера</div>
-            )}
-          </div>
-        )}
+                  : 'Откройте меню браузера (⋮) и выберите «Установить приложение» или «Добавить на главный экран». На iPhone — «Поделиться» → «На экран Домой».'}
+          </p>
+          {pwa.nativeApp || pwa.installed ? (
+            <div className="flex items-center gap-2 text-mint">
+              <Icon name="check" className="w-4 h-4" />
+              <span className="text-[11px] font-extrabold">{pwa.nativeApp ? 'Нативное приложение' : 'Установлено'}</span>
+            </div>
+          ) : pwa.canInstall ? (
+            <button className="btn btn-primary w-full !py-2.5 !text-xs" onClick={doInstallPwa}>
+              <Icon name="star" className="w-4 h-4" />Установить приложение
+            </button>
+          ) : (
+            <div className="chip !text-[10px] text-butter/80"><Icon name="info" className="w-3 h-3" />подсказка в меню браузера</div>
+          )}
+        </div>
 
         <div className="card-soft p-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-cream/85">
@@ -438,8 +494,12 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
           </p>
           <div className="grid grid-cols-2 gap-2">
             <button className="btn btn-lilac !py-2 !text-xs" onClick={doExportBrain}><Icon name="export" className="w-4 h-4" />Модель</button>
+            <button className="btn btn-mint !py-2 !text-xs" onClick={doDownloadBrain}><Icon name="export" className="w-4 h-4" />Модель в файл</button>
             <button className="btn btn-ghost !py-2 !text-xs" onClick={() => setShowBrainImport(v => !v)}><Icon name="import" className="w-4 h-4" />Вживить</button>
+            <button className="btn btn-butter !py-2 !text-xs" onClick={() => brainFileRef.current?.click()}><Icon name="import" className="w-4 h-4" />Модель из файла</button>
           </div>
+          <input ref={brainFileRef} type="file" accept=".txt,.json,text/plain" className="hidden" aria-hidden="true"
+            onChange={e => { void onBrainFilePicked(e.target.files?.[0] ?? null); e.target.value = ''; }} />
           {showBrainImport && (
             <div className="anim-fade-up space-y-2 mt-2">
               <textarea value={brainCode} onChange={e => setBrainCode(e.target.value)} placeholder="Вставьте код модели мозга…"
@@ -450,13 +510,17 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
         </div>
 
         <p className="text-[11px] font-bold text-cream/40 leading-relaxed px-1">
-          Питомец живёт в localStorage этого браузера. Чтобы перенести его на другое устройство, экспортируйте сейв и импортируйте там.
+          Питомец живёт в localStorage этого браузера. Чтобы перенести его на другое устройство, сохраните сейв в файл («Сейв в файл») и загрузите там («Сейв из файла»).
         </p>
 
         <div className="grid grid-cols-2 gap-2">
           <button className="btn btn-sky !py-2.5 !text-xs" onClick={doExport}><Icon name="export" className="w-4 h-4" />Экспорт</button>
+          <button className="btn btn-mint !py-2.5 !text-xs" onClick={doDownloadSave}><Icon name="export" className="w-4 h-4" />Сейв в файл</button>
           <button className="btn btn-lilac !py-2.5 !text-xs" onClick={() => { setShowImport(v => !v); setShowCode(false); }}><Icon name="import" className="w-4 h-4" />Импорт</button>
+          <button className="btn btn-butter !py-2.5 !text-xs" onClick={() => saveFileRef.current?.click()}><Icon name="import" className="w-4 h-4" />Сейв из файла</button>
         </div>
+        <input ref={saveFileRef} type="file" accept=".txt,.json,text/plain" className="hidden" aria-hidden="true"
+          onChange={e => { void onSaveFilePicked(e.target.files?.[0] ?? null); e.target.value = ''; }} />
 
         {showCode && (
           <div className="anim-fade-up">
