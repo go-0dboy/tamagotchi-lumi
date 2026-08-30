@@ -20,12 +20,16 @@ export interface PwaState {
   installed: boolean;
   /** браузер вообще поддерживает PWA-установку */
   supported: boolean;
+  /** запущено как нативное приложение Capacitor (APK/IPA) —
+      WebView не присылает «предложение браузера», установка не нужна */
+  nativeApp: boolean;
 }
 
 let state: PwaState = {
   canInstall: false,
-  installed: false,
+  installed: typeof window !== 'undefined' && detectInstalled(),
   supported: typeof window !== 'undefined' && 'BeforeInstallPromptEvent' in window,
+  nativeApp: typeof window !== 'undefined' && Capacitor.isNativePlatform(),
 };
 
 let deferredPrompt: InstallPromptEvent | null = null;
@@ -74,13 +78,13 @@ export async function promptInstall(): Promise<boolean> {
 
 /** Инициализация: регистрация SW + слушатели установки. */
 export function initPwa() {
-  /* в нативном приложении PWA-слой не нужен */
+  /* в нативном приложении PWA-слой не нужен: приложение уже установлено */
   if (Capacitor.isNativePlatform()) {
-    set({ installed: true, supported: false });
+    set({ installed: true, supported: false, nativeApp: true });
     return;
   }
 
-  set({ installed: detectInstalled() });
+  set({ installed: detectInstalled(), nativeApp: false });
 
   /* регистрируем service worker только в production-сборке,
      чтобы не мешать hot-reload при разработке */
