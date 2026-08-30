@@ -5,6 +5,7 @@
 import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from 'react';
 import { engine, timePhase, getWeather } from './game/engine';
 import { initializeNative } from './native/platform';
+import { initPwa } from './native/pwa';
 import PetSprite from './components/PetSprite';
 import RoomScene from './components/Room';
 import HUD from './components/HUD';
@@ -53,6 +54,8 @@ function Game() {
     /* нативная платформа (Capacitor): сплэш, статус-бар, пуши, жизненный цикл.
        В браузере — мгновенный no-op, веб-версия ничего не чувствует. */
     void initializeNative();
+    /* PWA-слой: service worker + перехват «Установить приложение» */
+    initPwa();
     const unsub = engine.subscribe(() => { setS({ ...engine.state }); force(x => x + 1); });
     const loop = setInterval(() => engine.tick(), 4000);
     const saveInt = setInterval(() => engine.save(), 30000);
