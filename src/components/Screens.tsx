@@ -3,11 +3,12 @@
  * карточка встречи, «С возвращением», прощание, настройки.
  * Без confirm()/prompt() — всё работает в песочнице.
  * ============================================================ */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Pet, GameState, OfflineEvent, LegacyEntry } from '../game/types';
 import { engine } from '../game/engine';
 import { speciesOf, abilityOf, RARITY_COLOR } from '../game/dna';
 import { sfx } from '../game/sound';
+import { getPwaState, promptInstall, subscribePwa, type PwaState } from '../native/pwa';
 import PetSprite from './PetSprite';
 import Icon from './icons';
 
@@ -137,6 +138,7 @@ export function RevealSheet({ pet, onDone, embedded = false }: { pet: Pet; onDon
         <div className="mt-4 text-left">
           <label className="text-[11px] font-black text-cream/50 uppercase tracking-wider">Как его зовут?</label>
           <input className="input-soft mt-1.5 text-center font-display" value={name} maxLength={14} onChange={e => setName(e.target.value)} />
+          <p className="text-[10px] font-bold text-cream/35 mt-1 text-center">Мы предложили имя — но вы можете дать своё.</p>
         </div>
 
         <div className="mt-3 card-soft p-3 text-left">
@@ -251,8 +253,34 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
   const [city, setCity] = useState(state.owner.city);
   const [brainCode, setBrainCode] = useState('');
   const [showBrainImport, setShowBrainImport] = useState(false);
+  const [petName, setPetName] = useState(state.pet?.name ?? '');
+  const [pwa, setPwa] = useState<PwaState>(getPwaState());
   const brain = engine.brainInfo();
   const flash = (text: string, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg(null), 2600); };
+
+  /* следим за возможностью установки PWA (браузер присылает событие асинхронно) */
+  useEffect(() => subscribePwa(setPwa), []);
+
+  /* если имя питомца поменялось снаружи (например, после «Начать новую историю») */
+  useEffect(() => {
+    const cur = state.pet?.name ?? '';
+    if (cur && cur !== petName) setPetName(cur);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.pet?.name]);
+
+  const doRenamePet = () => {
+    const clean = petName.trim();
+    if (!clean) { flash('Имя не может быть пустым', false); return; }
+    engine.renamePet(clean);
+    sfx.chime();
+    flash(`Теперь его зовут ${clean}!`);
+  };
+
+  const doInstallPwa = async () => {
+    const ok = await promptInstall();
+    if (ok) flash('Люмос установлен! Ищите его на главном экране.');
+    else flash('Установка отменена — её можно повторить в любой момент', false);
+  };
 
   const doExport = () => {
     const code = engine.exportSave();
@@ -314,6 +342,35 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
           </div>
         )}
 
+        {/* установка игры как приложение (PWA) — только если браузер это умеет */}
+        {pwa.supported && (
+          <div className="card-soft p-3.5" style={{ borderColor: 'rgba(255,217,142,0.35)' }}>
+            <div className="flex items-center gap-2.5 text-cream/85 mb-1">
+              <Icon name="star" className="w-5 h-5 text-butter" />
+              <span className="text-[13px] font-extrabold">Люмос как приложение</span>
+            </div>
+            <p className="text-[10.5px] font-bold text-cream/45 leading-snug mb-2.5">
+              {pwa.installed
+                ? 'Уже установлено — ищите на главном экране.'
+                : pwa.canInstall
+                  ? 'Поставьте игру на главный экран: будет запускаться без адресной строки и работать офлайн.'
+                  : 'Браузер сам предложит установку, когда игра загрузится. На iPhone — «Поделиться» → «На экран Домой».'}
+            </p>
+            {pwa.installed ? (
+              <div className="flex items-center gap-2 text-mint">
+                <Icon name="check" className="w-4 h-4" />
+                <span className="text-[11px] font-extrabold">Установлено</span>
+              </div>
+            ) : pwa.canInstall ? (
+              <button className="btn btn-primary w-full !py-2.5 !text-xs" onClick={doInstallPwa}>
+                <Icon name="star" className="w-4 h-4" />Установить приложение
+              </button>
+            ) : (
+              <div className="chip !text-[10px] text-cream/40"><Icon name="info" className="w-3 h-3" />ожидает предложения браузера</div>
+            )}
+          </div>
+        )}
+
         <div className="card-soft p-3.5 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-cream/85">
             <Icon name={state.settings.sound ? 'soundOn' : 'soundOff'} className="w-5 h-5 text-sky" />
@@ -334,6 +391,22 @@ export function SettingsModal({ state, onClose }: { state: GameState; onClose: (
             onClick={() => engine.setReminders(!state.settings.reminders)}>
             {state.settings.reminders ? 'Вкл' : 'Выкл'}
           </button>
+        </div>
+
+        {/* смена имени питомца */}
+        <div className="card-soft p-3.5">
+          <div className="flex items-center gap-2.5 text-cream/85 mb-2">
+            <Icon name="heart" className="w-5 h-5 text-rose" />
+            <span className="text-[13px] font-extrabold">Имя питомца</span>
+          </div>
+          <div className="flex gap-2">
+            <input className="input-soft flex-1 min-w-0 !py-2 !text-[12.5px] font-display" maxLength={14}
+              value={petName} onChange={e => setPetName(e.target.value)} placeholder="Как его зовут?" />
+            <button className="btn btn-primary !py-2 !px-3.5 !text-xs" onClick={doRenamePet}>
+              <Icon name="check" className="w-4 h-4" />
+            </button>
+          </div>
+          <p className="text-[10.5px] font-bold text-cream/35 mt-1.5 leading-snug">Он откликнется на новое имя — и в болталке, и в дневнике.</p>
         </div>
 
         <div className="card-soft p-3.5">
