@@ -4,7 +4,7 @@
  * мордочки, усы, клыки, зрачки; уши, хвосты, узоры, одежда,
  * черты эволюции. Моргание, дыхание, взгляд за курсором.
  * ============================================================ */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import type { Pet } from '../game/types';
 import { stageForAge, stageScale } from '../game/content';
 
@@ -56,8 +56,8 @@ function Ears({ type, color, inner }: { type: string; color: string; inner: stri
       <g>
         <path d="M100 86 C96 70 92 60 88 52" stroke={color} strokeWidth="4" fill="none" strokeLinecap="round" />
         <path d="M140 86 C144 70 148 60 152 52" stroke={color} strokeWidth="4" fill="none" strokeLinecap="round" />
-        <circle cx="87" cy="48" r="7" fill={inner} style={{ animation: 'pulseSoft 2.2s ease-in-out infinite' }} />
-        <circle cx="153" cy="48" r="7" fill={inner} style={{ animation: 'pulseSoft 2.2s ease-in-out infinite 0.6s' }} />
+        <circle className="pet-glint" cx="87" cy="48" r="7" fill={inner} style={{ animation: 'pulseSoft 2.2s ease-in-out infinite' }} />
+        <circle className="pet-glint" cx="153" cy="48" r="7" fill={inner} style={{ animation: 'pulseSoft 2.2s ease-in-out infinite 0.6s' }} />
       </g>);
     case 'fin': return (
       <g>
@@ -87,7 +87,7 @@ function Tail({ type, color, inner, aura }: { type: string; color: string; inner
     case 'fluffy': return (
       <g><ellipse cx="188" cy="164" rx="22" ry="34" fill={color} transform="rotate(-24 188 164)" /><ellipse cx="192" cy="146" rx="12" ry="16" fill={inner} transform="rotate(-24 192 146)" /></g>);
     case 'curl': return <path d="M182 172 C210 168 218 146 206 130 C198 120 184 122 182 134" stroke={color} strokeWidth="12" fill="none" strokeLinecap="round" />;
-    case 'wisp': return <path d="M184 176 C204 168 214 148 204 128 C198 146 188 156 178 160 Z" fill={aura} opacity="0.65" className="anim-float" />;
+    case 'wisp': return <path d="M184 176 C204 168 214 148 204 128 C198 146 188 156 178 160 Z" fill={aura} opacity="0.65" className="anim-float pet-glint" />;
     case 'leaf': return (
       <g><ellipse cx="192" cy="152" rx="14" ry="26" fill="#8fca7f" transform="rotate(-30 192 152)" /><path d="M186 172 C190 158 194 144 200 132" stroke={inner} strokeWidth="2.5" fill="none" strokeLinecap="round" /></g>);
     case 'spike': return (
@@ -99,12 +99,12 @@ function Tail({ type, color, inner, aura }: { type: string; color: string; inner
     case 'star': return (
       <g>
         <path d="M182 172 C198 166 206 154 206 140" stroke={color} strokeWidth="7" fill="none" strokeLinecap="round" />
-        <path d="M206 128 l3.4 6.8 7.6 1.1-5.5 5.3 1.3 7.5-6.8-3.6-6.8 3.6 1.3-7.5-5.5-5.3 7.6-1.1z" fill={aura} style={{ animation: 'twinkle 2.4s ease-in-out infinite' }} />
+        <path className="pet-glint" d="M206 128 l3.4 6.8 7.6 1.1-5.5 5.3 1.3 7.5-6.8-3.6-6.8 3.6 1.3-7.5-5.5-5.3 7.6-1.1z" fill={aura} style={{ animation: 'twinkle 2.4s ease-in-out infinite' }} />
       </g>);
     case 'comet': return (
       <g>
         <path d="M182 170 C202 164 214 150 216 132" stroke={aura} strokeWidth="8" fill="none" strokeLinecap="round" opacity="0.8" />
-        <circle cx="216" cy="130" r="6" fill={aura} style={{ animation: 'pulseSoft 1.8s ease-in-out infinite' }} />
+        <circle className="pet-glint" cx="216" cy="130" r="6" fill={aura} style={{ animation: 'pulseSoft 1.8s ease-in-out infinite' }} />
         <circle cx="222" cy="120" r="3" fill={aura} opacity="0.6" />
         <circle cx="226" cy="112" r="2" fill={aura} opacity="0.4" />
       </g>);
@@ -132,16 +132,16 @@ function Pattern({ type, accent, aura }: { type: string; accent: string; aura: s
       </g>);
     case 'glowdots': return (
       <g fill={aura}>
-        <circle cx="94" cy="120" r="4" style={{ animation: 'twinkle 2.6s ease-in-out infinite' }} />
-        <circle cx="148" cy="114" r="3.5" style={{ animation: 'twinkle 2.6s ease-in-out infinite 0.7s' }} />
-        <circle cx="106" cy="182" r="3.5" style={{ animation: 'twinkle 2.6s ease-in-out infinite 1.2s' }} />
-        <circle cx="140" cy="180" r="3" style={{ animation: 'twinkle 2.6s ease-in-out infinite 1.7s' }} />
+        <circle className="pet-glint" cx="94" cy="120" r="4" style={{ animation: 'twinkle 2.6s ease-in-out infinite' }} />
+        <circle className="pet-glint" cx="148" cy="114" r="3.5" style={{ animation: 'twinkle 2.6s ease-in-out infinite 0.7s' }} />
+        <circle className="pet-glint" cx="106" cy="182" r="3.5" style={{ animation: 'twinkle 2.6s ease-in-out infinite 1.2s' }} />
+        <circle className="pet-glint" cx="140" cy="180" r="3" style={{ animation: 'twinkle 2.6s ease-in-out infinite 1.7s' }} />
       </g>);
     case 'stars': return (
       <g fill={aura}>
-        <path d="M94 118 l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z" style={{ animation: 'twinkle 3s ease-in-out infinite' }} />
-        <path d="M148 112 l2 4.1 4.5.7-3.3 3.2.8 4.5-4-2.1-4 2.1.8-4.5-3.3-3.2 4.5-.7z" style={{ animation: 'twinkle 3s ease-in-out infinite 1s' }} />
-        <circle cx="120" cy="186" r="3" style={{ animation: 'twinkle 3s ease-in-out infinite 2s' }} />
+        <path className="pet-glint" d="M94 118 l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z" style={{ animation: 'twinkle 3s ease-in-out infinite' }} />
+        <path className="pet-glint" d="M148 112 l2 4.1 4.5.7-3.3 3.2.8 4.5-4-2.1-4 2.1.8-4.5-3.3-3.2 4.5-.7z" style={{ animation: 'twinkle 3s ease-in-out infinite 1s' }} />
+        <circle className="pet-glint" cx="120" cy="186" r="3" style={{ animation: 'twinkle 3s ease-in-out infinite 2s' }} />
       </g>);
     case 'scales': return (
       <g stroke={accent} strokeWidth="2.5" fill="none" opacity="0.5">
@@ -165,7 +165,7 @@ function Pattern({ type, accent, aura }: { type: string; accent: string; aura: s
   }
 }
 
-function Outfit({ pet }: { pet: Pet }) {
+function Outfit({ pet, eyeOffset }: { pet: Pet; eyeOffset: number }) {
   const o = pet.outfit;
   return (
     <g>
@@ -173,7 +173,7 @@ function Outfit({ pet }: { pet: Pet }) {
         <g>
           <path d="M120 18 L146 80 L94 80 Z" fill="#c8b6ff" />
           <rect x="90" y="76" width="60" height="10" rx="5" fill="#a992f0" />
-          <circle cx="120" cy="18" r="6" fill="#ffd98e" style={{ animation: 'twinkle 2s ease-in-out infinite' }} />
+          <circle className="pet-glint" cx="120" cy="18" r="6" fill="#ffd98e" style={{ animation: 'twinkle 2s ease-in-out infinite' }} />
         </g>
       )}
       {o.hat === 'hat_leaf' && (
@@ -191,22 +191,23 @@ function Outfit({ pet }: { pet: Pet }) {
       )}
       {o.glasses === 'glasses_round' && (
         <g stroke="#ffd98e" strokeWidth="3" fill="none">
-          <circle cx="94" cy="134" r="14" /><circle cx="146" cy="134" r="14" />
-          <path d="M108 134 h24 M80 130 L70 124 M160 130 L170 124" />
+          <circle cx={120 - eyeOffset} cy="134" r="14" /><circle cx={120 + eyeOffset} cy="134" r="14" />
+          <path d={`M${134 - eyeOffset} 134H${106 + eyeOffset} M${107 - eyeOffset} 130l-10-6 M${133 + eyeOffset} 130l10-6`} />
         </g>
       )}
     </g>
   );
 }
 
-function EvolutionMarks({ pet }: { pet: Pet }) {
+function EvolutionMarks({ pet, eyeOffset }: { pet: Pet; eyeOffset: number }) {
   const t = pet.evolutionTraits;
   const noGlasses = pet.outfit.glasses !== 'glasses_round';
   return (
     <g>
       {t.includes('очки мудрости') && noGlasses && (
         <g stroke="#8ecae6" strokeWidth="3" fill="none">
-          <circle cx="94" cy="134" r="13" /><circle cx="146" cy="134" r="13" /><path d="M107 134 h26" />
+          <circle cx={120 - eyeOffset} cy="134" r="13" /><circle cx={120 + eyeOffset} cy="134" r="13" />
+          <path d={`M${133 - eyeOffset} 134H${107 + eyeOffset}`} />
         </g>
       )}
       {t.includes('спортивная повязка') && <rect x="88" y="92" width="64" height="11" rx="5.5" fill="#ff8f7d" />}
@@ -222,32 +223,61 @@ function EvolutionMarks({ pet }: { pet: Pet }) {
 
 export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
   const { dna, stats, sleeping } = pet;
-  const [look, setLook] = useState({ x: 0, y: 0 });
   const wrapRef = useRef<HTMLDivElement>(null);
+  const interactive = Boolean(onStroke);
+  const id = `pet-${useId().replace(/:/g, '')}`;
 
   const ageDays = Math.max(0, (Date.now() - pet.growth.bornAt) / 86400000);
   const stage = stageForAge(ageDays);
   const scale = stageScale(stage.key);
 
   useEffect(() => {
-    if (sleeping) { setLook({ x: 0, y: 0 }); return; }
+    const el = wrapRef.current;
+    if (!interactive || sleeping || !el) return;
+    const motion = matchMedia('(prefers-reduced-motion: reduce)');
     let raf = 0;
-    const move = (e: PointerEvent) => {
-      const el = wrapRef.current; if (!el) return;
-      const r = el.getBoundingClientRect();
-      const dx = (e.clientX - (r.left + r.width / 2)) / r.width;
-      const dy = (e.clientY - (r.top + r.height / 2)) / r.height;
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => setLook({ x: Math.max(-1, Math.min(1, dx * 2)), y: Math.max(-1, Math.min(1, dy * 2)) }));
+    let pointerX = 0;
+    let pointerY = 0;
+    let lastX = 0;
+    let lastY = 0;
+    const setGaze = (x: number, y: number) => {
+      if (x !== lastX) el.style.setProperty('--look-x', `${x}px`);
+      if (y !== lastY) el.style.setProperty('--look-y', `${y}px`);
+      lastX = x;
+      lastY = y;
     };
-    window.addEventListener('pointermove', move);
-    return () => { window.removeEventListener('pointermove', move); cancelAnimationFrame(raf); };
-  }, [sleeping]);
+    const move = (e: PointerEvent) => {
+      if (e.pointerType !== 'mouse' || document.hidden || motion.matches) return;
+      pointerX = e.clientX;
+      pointerY = e.clientY;
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const rect = el.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const dx = (pointerX - rect.left) / rect.width * 2 - 1;
+        const dy = (pointerY - rect.top) / rect.height * 2 - 1;
+        setGaze(Math.round(Math.max(-1, Math.min(1, dx)) * 20) / 10,
+          Math.round(Math.max(-1, Math.min(1, dy)) * 16) / 10);
+      });
+    };
+    const center = () => setGaze(0, 0);
+    window.addEventListener('pointermove', move, { passive: true });
+    window.addEventListener('blur', center);
+    motion.addEventListener?.('change', center);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('blur', center);
+      motion.removeEventListener?.('change', center);
+      cancelAnimationFrame(raf);
+      center();
+    };
+  }, [interactive, sleeping]);
 
   const happy = stats.mood >= 65;
   const sad = stats.mood < 35;
+  const hungry = stats.hunger < 25;
   const c = { p: dna.colorPrimary, s: dna.colorSecondary, a: dna.colorAccent, aura: dna.aura };
-  const gid = `grad${dna.seed}`;
 
   const muzzle = ['fox', 'cat', 'forest', 'dragon'].includes(dna.species);
   const whiskers = dna.species === 'fox' || dna.species === 'cat';
@@ -258,29 +288,29 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
   const eyeR = dna.eyeStyle === 0 ? 8 : dna.eyeStyle === 1 ? 9.5 : 7;
   const ex = dna.eyeStyle === 2 ? 30 : 26;
 
-  const eye = (cx: number, key: string) => sleeping ? (
-    <path key={key} d={`M${cx - 9} 134 q9 7 18 0`} stroke="#2b1d33" strokeWidth="3.5" fill="none" strokeLinecap="round" />
-  ) : sad ? (
-    <g key={key}>
-      {catEyes ? <circle cx={cx} cy={134} r={eyeR} fill="#f4c266" /> : <circle cx={cx} cy={134} r={eyeR} fill="#2b1d33" />}
-      {catEyes && <ellipse cx={cx} cy={134} rx="2.6" ry={eyeR * 0.75} fill="#1a0f20" />}
-      <circle cx={cx - eyeR * 0.3 + look.x * 2} cy={131 + look.y * 2} r="2.6" fill="#ffffff" />
-      <path d={`M${cx - eyeR - 1} ${134 - eyeR - 2} q${eyeR} ${-4} ${eyeR * 2 + 2} 0`} fill={c.p} />
-    </g>
+  const eye = (cx: number, side: string) => sleeping ? (
+    <path d={`M${cx - 9} 134 q9 7 18 0`} stroke="#2b1d33" strokeWidth="3.5" fill="none" strokeLinecap="round" />
   ) : (
-    <g key={key}>
-      {catEyes ? <circle cx={cx} cy={134} r={eyeR} fill="#f4c266" /> : <circle cx={cx} cy={134} r={eyeR} fill="#2b1d33" />}
-      {catEyes && <ellipse cx={cx + look.x * 2} cy={134 + look.y * 2} rx="2.8" ry={eyeR * 0.8} fill="#1a0f20" />}
-      <circle cx={cx - eyeR * 0.3 + look.x * 3} cy={131 + look.y * 3} r={dna.eyeStyle === 1 ? 3 : 2.4} fill="#ffffff" />
-      {dna.eyeStyle === 1 && <circle cx={cx + eyeR * 0.35 + look.x * 3} cy={137 + look.y * 2} r="1.3" fill="#ffffff" opacity="0.8" />}
-      <ellipse className={key === 'eyeL' ? 'blink-lid' : 'blink-lid2'} cx={cx} cy={134} rx={eyeR + 2} ry={eyeR + 2} fill={c.p} />
+    <g className="pet-eye">
+      <circle cx={cx} cy="134" r={eyeR} fill={catEyes ? '#f4c266' : `url(#${id}-iris)`} />
+      <g clipPath={`url(#${id}-eye-${side})`}>
+        <g className="pet-gaze">
+          {catEyes
+            ? <ellipse cx={cx} cy="134" rx="2.8" ry={eyeR * 0.82} fill="#211827" />
+            : <circle cx={cx} cy="134" r={eyeR * 0.58} fill="#201928" />}
+          <circle cx={cx - eyeR * 0.29} cy="131" r={dna.eyeStyle === 1 ? 2.8 : 2.25} fill="#fff9ed" />
+          <circle cx={cx + eyeR * 0.34} cy="137" r="1.2" fill="#fff9ed" opacity=".7" />
+        </g>
+      </g>
+      {sad && <path d={`M${cx - eyeR + 1} ${132 - eyeR}q${eyeR} -2 ${eyeR * 2 - 2} -1`}
+        fill="none" stroke={c.a} strokeWidth="2" strokeLinecap="round" />}
     </g>
   );
 
   const mouth = () => {
     const y = 160;
     if (sleeping) return <path d={`M112 ${y} q8 4 16 0`} stroke="#7a4a3a" strokeWidth="3" fill="none" strokeLinecap="round" />;
-    if (stats.hunger < 25) return <ellipse cx="120" cy={y + 2} rx="4.5" ry="5.5" fill="#7a4a3a" />;
+    if (hungry) return <ellipse cx="120" cy={y + 2} rx="4.5" ry="5.5" fill="#7a4a3a" />;
     if (sad) return <path d={`M112 ${y + 5} q8 -7 16 0`} stroke="#7a4a3a" strokeWidth="3" fill="none" strokeLinecap="round" />;
     if (dna.mouth === 1) return <path d={`M106 ${y - 2} q7 7 14 0 q7 7 14 0`} stroke="#7a4a3a" strokeWidth="3" fill="none" strokeLinecap="round" />;
     if (dna.mouth === 2 && happy) return (
@@ -294,9 +324,9 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
 
   const auraTraits = pet.evolutionTraits.some(t => ['мягкое свечение', 'мерцающие искры'].includes(t)) || dna.rarity === 'мифический';
 
-  return (
-    <div ref={wrapRef} className={`relative cursor-pointer select-none ${pet.dna.idle}`} style={{ width: size }}
-      onPointerDown={onStroke} role="button" aria-label={`Погладить ${pet.name}`}>
+  const art = (
+    <>
+      <span className="pet-contact" style={{ width: `${46 * scale}%` }} />
       {sleeping && (
         <>
           <span className="zzz" style={{ top: '6%', right: '4%', fontSize: '26px', animationDelay: '0s' }}>Z</span>
@@ -305,36 +335,46 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
         </>
       )}
       {auraTraits && (
-        <div className="absolute -inset-6 rounded-full pointer-events-none" style={{
+        <span className="absolute -inset-6 rounded-full pointer-events-none" style={{
           background: `radial-gradient(circle, ${dna.aura}30 0%, transparent 68%)`,
           animation: 'pulseSoft 3.2s ease-in-out infinite',
         }} />
       )}
       {pet.bond > 85 && !pet.transcended && (
-        <div className="absolute -top-2 left-1/2 -translate-x-1/2 anim-float pointer-events-none">
+        <span className="absolute -top-2 left-1/2 -translate-x-1/2 anim-float pointer-events-none">
           <svg viewBox="0 0 24 24" className="w-5 h-5 text-rose"><path fill="currentColor" d="M12 21C5.5 15.5 2 12 2 8.5 2 5.7 4.2 3.5 7 3.5c1.9 0 3.7 1 5 2.7 1.3-1.7 3.1-2.7 5-2.7 2.8 0 5 2.2 5 5 0 3.5-3.5 7-10 12.5z" /></svg>
-        </div>
+        </span>
       )}
 
       {/* дыхание — на обёртке, чтобы scale стадии не перезаписывался анимацией */}
-      <div className={sleeping ? 'anim-breathe' : sad ? 'anim-droop' : ''} style={{ transformOrigin: '50% 92%' }}>
-        <svg viewBox="0 0 240 240" className="w-full block"
-          style={{ transform: `scale(${scale})`, transformOrigin: '50% 88%', overflow: 'visible' }}>
+      <span className={`block ${sleeping ? 'anim-breathe' : sad ? 'anim-droop' : dna.idle}`} style={{ transformOrigin: '50% 91%' }}>
+        <svg viewBox="0 0 240 240" className="w-full block pointer-events-none" aria-hidden="true"
+          style={{ transform: `scale(${scale})`, transformOrigin: '50% 91%', overflow: 'visible' }}>
           <defs>
-            <radialGradient id={gid} cx="38%" cy="30%" r="80%">
-              <stop offset="0%" stopColor={c.s} />
-              <stop offset="100%" stopColor={c.p} />
+            <radialGradient id={`${id}-body`} cx="35%" cy="26%" r="76%">
+              <stop offset="0" stopColor={c.s} />
+              <stop offset=".64" stopColor={c.p} />
+              <stop offset="1" stopColor={c.a} />
             </radialGradient>
+            <linearGradient id={`${id}-belly`} x2="0" y2="1">
+              <stop stopColor={c.s} stopOpacity=".9" />
+              <stop offset="1" stopColor={c.s} stopOpacity=".12" />
+            </linearGradient>
+            <linearGradient id={`${id}-iris`} x2="0" y2="1">
+              <stop stopColor="#36283b" />
+              <stop offset="1" stopColor="#5c4252" />
+            </linearGradient>
+            <clipPath id={`${id}-eye-left`}><circle cx={120 - ex} cy="134" r={eyeR} /></clipPath>
+            <clipPath id={`${id}-eye-right`}><circle cx={120 + ex} cy="134" r={eyeR} /></clipPath>
           </defs>
 
-          <ellipse cx="120" cy="218" rx="58" ry="11" fill="#0c1220" opacity="0.4" />
           <Tail type={dna.tail} color={c.p} inner={c.s} aura={c.aura} />
           <Ears type={dna.ears} color={c.p} inner={c.s} />
 
           {pet.outfit.wings === 'wings_moth' && (
             <g>
-              <ellipse className="wing-l" cx="48" cy="130" rx="24" ry="38" fill={c.aura} opacity="0.5" transform="rotate(-16 48 130)" />
-              <ellipse className="wing-r" cx="192" cy="130" rx="24" ry="38" fill={c.aura} opacity="0.5" transform="rotate(16 192 130)" />
+              <g className="wing-l"><ellipse cx="48" cy="130" rx="24" ry="38" fill={c.aura} opacity="0.55" transform="rotate(-16 48 130)" /></g>
+              <g className="wing-r"><ellipse cx="192" cy="130" rx="24" ry="38" fill={c.aura} opacity="0.55" transform="rotate(16 192 130)" /></g>
             </g>
           )}
 
@@ -347,8 +387,9 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
             </g>
           </g>
 
-          <path d={BODY[dna.body] ?? BODY[0]} fill={`url(#${gid})`} stroke={c.a} strokeWidth="2.5" />
-          <ellipse cx="120" cy="170" rx="34" ry="27" fill={c.s} opacity="0.85" />
+          <path d={BODY[dna.body] ?? BODY[0]} fill={`url(#${id}-body)`} stroke={c.a} strokeWidth="2.8" />
+          <path d="M88 111c7-11 20-16 31-17" fill="none" stroke="#fff8e9" strokeWidth="4" opacity=".42" strokeLinecap="round" />
+          <ellipse cx="120" cy="170" rx="35" ry="28" fill={`url(#${id}-belly)`} />
 
           {dna.pattern === 'belly'
             ? <ellipse cx="120" cy="170" rx="30" ry="24" fill="none" stroke={c.a} strokeWidth="2" strokeDasharray="3 6" opacity="0.5" />
@@ -393,8 +434,8 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
             </g>
           )}
 
-          {eye(120 - ex, 'eyeL')}
-          {eye(120 + ex, 'eyeR')}
+          {eye(120 - ex, 'left')}
+          {eye(120 + ex, 'right')}
 
           {dna.species === 'fox' && <path d="M120 149 l-5 4.5 5 4 5 -4 z" fill="#d98e73" />}
           {dna.species === 'cat' && (
@@ -408,9 +449,9 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
             <g fill="#7a4a3a"><circle cx="116" cy="150" r="1.6" /><circle cx="124" cy="150" r="1.6" /></g>
           )}
           {mouth()}
-          {fangs && happy && !sleeping && (
+          {fangs && happy && !sleeping && !hungry && dna.mouth === 2 && (
             <g fill="#fff3e2">
-              <path d="M111 158 l3 6 3 -5 z" /><path d="M123 159 l3 5 3 -6 z" />
+              <path d="M111 157h6l-2 4z" /><path d="M123 157h6l-4 4z" />
             </g>
           )}
 
@@ -420,10 +461,23 @@ export default function PetSprite({ pet, size = '220px', onStroke }: Props) {
             </g>
           )}
 
-          <Outfit pet={pet} />
-          <EvolutionMarks pet={pet} />
+          <Outfit pet={pet} eyeOffset={ex} />
+          <EvolutionMarks pet={pet} eyeOffset={ex} />
         </svg>
-      </div>
+      </span>
+    </>
+  );
+
+  return (
+    <div ref={wrapRef} className="relative" style={{ width: size }}>
+      {onStroke ? (
+        <button type="button" className="pet-sprite relative block w-full select-none enabled:cursor-pointer"
+          disabled={sleeping} onClick={onStroke} aria-label={`Погладить ${pet.name}`}>
+          {art}
+        </button>
+      ) : (
+        <div className="pet-sprite relative" aria-hidden="true">{art}</div>
+      )}
     </div>
   );
 }

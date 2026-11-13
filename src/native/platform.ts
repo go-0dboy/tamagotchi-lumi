@@ -18,6 +18,7 @@ import { engine } from '../game/engine';
 import { cancelAll, ensurePermission, scheduleCareReminders } from './notify';
 
 const native = () => Capacitor.isNativePlatform();
+let initialized = false;
 
 /** цвет статус-бара под время суток: игра всегда «ночная», днём — мягче */
 function phaseStatusBarColor(): string {
@@ -40,7 +41,8 @@ async function applyStatusBar() {
 }
 
 export async function initializeNative() {
-  if (!native()) return;
+  if (!native() || initialized) return;
+  initialized = true;
 
   /* игра готова — убираем системный сплэш */
   try { await SplashScreen.hide({ fadeOutDuration: 400 }); } catch { /* noop */ }
@@ -57,10 +59,10 @@ export async function initializeNative() {
     if (isActive) {
       /* вернулись: гасим пуши и пересчитываем, что питомец делал без нас */
       void cancelAll();
-      engine.start();
+      engine.resume();
     } else {
       /* ушли в фон: сохраняемся и планируем заботливые напоминания */
-      engine.save();
+      engine.pause();
       void scheduleCareReminders(engine.state);
     }
   });

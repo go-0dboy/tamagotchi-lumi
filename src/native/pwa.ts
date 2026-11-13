@@ -33,6 +33,7 @@ let state: PwaState = {
 };
 
 let deferredPrompt: InstallPromptEvent | null = null;
+let initialized = false;
 const listeners = new Set<(s: PwaState) => void>();
 
 function set(partial: Partial<PwaState>) {
@@ -78,6 +79,8 @@ export async function promptInstall(): Promise<boolean> {
 
 /** Инициализация: регистрация SW + слушатели установки. */
 export function initPwa() {
+  if (initialized) return;
+  initialized = true;
   /* в нативном приложении PWA-слой не нужен: приложение уже установлено */
   if (Capacitor.isNativePlatform()) {
     set({ installed: true, supported: false, nativeApp: true });
@@ -89,11 +92,13 @@ export function initPwa() {
   /* регистрируем service worker только в production-сборке,
      чтобы не мешать hot-reload при разработке */
   if ('serviceWorker' in navigator && import.meta.env.PROD) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {
+    const register = () => {
+      navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => {
         /* SW не критичен — игра работает и без него */
       });
-    });
+    };
+    if (document.readyState === 'complete') register();
+    else window.addEventListener('load', register, { once: true });
   }
 
   /* браузер сообщает, что игру можно установить */

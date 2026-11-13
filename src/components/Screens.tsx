@@ -21,17 +21,21 @@ export function Onboarding() {
 
   const startEgg = () => {
     if (ownerName.trim()) engine.state.owner.name = ownerName.trim().slice(0, 20);
-    if (ownerCity.trim()) { engine.state.owner.city = ownerCity.trim().slice(0, 30); engine.state.owner.geo = null; }
-    engine.save();
+    if (ownerCity.trim()) engine.setCity(ownerCity);
+    else engine.save();
     setPhase('egg');
     sfx.chime();
   };
 
+  useEffect(() => {
+    if (taps !== 5) return;
+    const timer = setTimeout(() => engine.hatchEgg(), 450);
+    return () => clearTimeout(timer);
+  }, [taps]);
+
   const tapEgg = () => {
     sfx.pop();
-    const n = taps + 1;
-    setTaps(n);
-    if (n >= 5) setTimeout(() => engine.hatchEgg(), 450);
+    setTaps(n => Math.min(n + 1, 5));
   };
 
   if (phase === 'intro') {
@@ -86,7 +90,7 @@ export function Onboarding() {
       <div className="m-auto flex flex-col items-center">
         <p className="font-display font-bold text-cream/80 text-lg mb-1.5 sm:mb-2 anim-fade text-center">В траве что-то светится…</p>
         <p className="text-[12px] font-bold text-cream/45 mb-5 sm:mb-8 text-center">Постучите по яйцу {5 - taps > 0 ? `ещё ${5 - taps} раз(а)` : '— оно отвечает!'}</p>
-        <button onClick={tapEgg} className={`relative ${taps < 5 ? 'anim-egg' : ''} active:scale-90 transition-transform`} aria-label="Постучать по яйцу">
+        <button onClick={tapEgg} disabled={taps >= 5} className={`relative ${taps < 5 ? 'anim-egg' : ''} active:scale-90 transition-transform`} aria-label="Постучать по яйцу">
           <svg className="w-[min(56vw,200px)] h-auto" viewBox="0 0 200 230">
             <ellipse cx="100" cy="196" rx="70" ry="16" fill="#0c1220" opacity="0.5" />
             <path d="M100 18 C150 18 168 90 168 132 C168 178 138 208 100 208 C62 208 32 178 32 132 C32 90 50 18 100 18 Z" fill="#fff3e2" stroke="#ffd9a8" strokeWidth="4" />
@@ -152,8 +156,7 @@ export function RevealSheet({ pet, onDone, embedded = false }: { pet: Pet; onDon
 
         <button className="btn btn-primary w-full mt-4" onClick={() => {
           engine.renamePet(name);
-          engine.completeReveal();
-          engine.setBubble(`Привет! Я ${name.trim() || pet.name}. Теперь мы команда!`);
+          engine.showBubble(`Привет! Я ${name.trim() || pet.name}. Теперь мы команда!`);
           sfx.chime();
           onDone();
         }}>
