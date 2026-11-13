@@ -45,14 +45,11 @@ html, body {
 @keyframes fadeUp { 0% { transform: translateY(18px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
 @keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
 @keyframes twinkle { 0%,100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
-@keyframes rainDrop { 0% { transform: translateY(-10%); opacity: 0; } 15% { opacity: 0.8; } 100% { transform: translateY(400px); opacity: 0.2; } }
-@keyframes snowDrop { 0% { transform: translateY(-8%) translateX(0); opacity: 0; } 12% { opacity: 0.9; } 100% { transform: translateY(400px) translateX(14px); opacity: 0.3; } }
 @keyframes firefly { 0%,100% { transform: translate(0,0); opacity: 0.2; } 25% { opacity: 0.9; } 50% { transform: translate(14px,-10px); opacity: 0.5; } 75% { opacity: 1; } }
-@keyframes lidBlink { 0%, 91%, 100% { transform: scaleY(0); } 94%, 97% { transform: scaleY(1); } }
+@keyframes eyeBlink { 0%, 93%, 100% { transform: scaleY(1); } 96%, 97% { transform: scaleY(0.1); } }
 @keyframes wingFlap { 0%,100% { transform: rotate(0deg) scaleX(1); } 50% { transform: rotate(-14deg) scaleX(0.9); } }
 @keyframes pulseSoft { 0%,100% { transform: scale(1); opacity: 0.85; } 50% { transform: scale(1.12); opacity: 1; } }
 @keyframes lampGlow { 0%,100% { opacity: 0.55; } 50% { opacity: 0.9; } }
-@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
 @keyframes wiggle { 0%,100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
 @keyframes eggWobble { 0%,100% { transform: rotate(-4deg); } 50% { transform: rotate(5deg); } }
 @keyframes toastIn { 0% { transform: translateY(16px) scale(0.9); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
@@ -60,14 +57,13 @@ html, body {
 @keyframes zzzFloat { 0% { transform: translate(0,0) scale(0.6); opacity: 0; } 20% { opacity: 0.9; } 100% { transform: translate(14px,-40px) scale(1.1); opacity: 0; } }
 
 /* одноразовые сценические эффекты */
-@keyframes squish { 0% { transform: scale(1,1); } 28% { transform: scale(1.08,0.88); } 55% { transform: scale(0.96,1.06); } 78% { transform: scale(1.02,0.98); } 100% { transform: scale(1,1); } }
 @keyframes heartUp {
   0% { transform: translate(0,10px) scale(0.3) rotate(var(--hr,0deg)); opacity: 0; }
   14% { opacity: 1; transform: translate(calc(var(--hx,0px)*0.2),-2px) scale(1) rotate(var(--hr,0deg)); }
   60% { opacity: 0.9; }
   100% { transform: translate(var(--hx,0px),-84px) scale(0.9) rotate(calc(var(--hr,0deg)*1.6)); opacity: 0; }
 }
-@keyframes broomSweep { 0% { left: 4%; } 100% { left: 82%; } }
+@keyframes broomSweep { 0% { transform: translateX(4%); } 100% { transform: translateX(82%); } }
 @keyframes broomWiggle { 0%,100% { transform: rotate(-16deg); } 50% { transform: rotate(10deg); } }
 @keyframes dustPuff { 0% { transform: translate(0,0) scale(0.35); opacity: 0; } 18% { opacity: 0.75; } 100% { transform: translate(var(--dx,10px),-34px) scale(1.5); opacity: 0; } }
 @keyframes sparkPop { 0% { transform: scale(0) rotate(0deg); opacity: 0; } 35% { transform: scale(1.25) rotate(40deg); opacity: 1; } 70% { transform: scale(0.9) rotate(70deg); opacity: 0.9; } 100% { transform: scale(0) rotate(90deg); opacity: 0; } }
@@ -89,21 +85,29 @@ html, body {
 .anim-fade { animation: fadeIn 0.4s ease both; }
 .anim-wiggle { animation: wiggle 0.5s ease-in-out infinite; }
 .anim-egg { animation: eggWobble 0.8s ease-in-out infinite; transform-origin: 50% 95%; }
-.anim-squish { animation: squish 0.55s cubic-bezier(0.34,1.56,0.64,1) both; transform-origin: 50% 92%; }
 .anim-blink { animation: blinkDot 1s ease-in-out infinite; }
 .anim-walk-strip { animation-name: walkStrip; animation-timing-function: linear; animation-iteration-count: infinite; }
 .anim-walker { animation: walkBob 0.5s ease-in-out infinite; }
 
 .fx-heart { animation: heartUp 1.35s cubic-bezier(0.22,0.9,0.36,1) both; filter: drop-shadow(0 0 6px rgba(255,174,201,0.55)); }
-.fx-broom { position: absolute; animation: broomSweep 1.5s cubic-bezier(0.45,0.05,0.35,1) both; }
-.fx-broom-inner { animation: broomWiggle 0.34s ease-in-out 5; transform-origin: 50% 12%; }
+.fx-broom { position: absolute; inset-inline: 0; animation: broomSweep 1.5s cubic-bezier(0.45,0.05,0.35,1) both; }
+.fx-broom-inner { width: max-content; animation: broomWiggle 0.34s ease-in-out 5; transform-origin: 50% 12%; }
 .fx-dust { animation: dustPuff 1s ease-out both; }
 .fx-spark { animation: sparkPop 0.8s cubic-bezier(0.34,1.56,0.64,1) both; filter: drop-shadow(0 0 6px currentColor); }
 .fx-bubble { animation: bubbleRise 1.9s ease-out both; }
 .fx-splash { animation: splashRing 0.9s ease-out both; }
 
-.blink-lid { animation: lidBlink 4.6s ease-in-out infinite; transform-origin: 50% 0%; transform-box: fill-box; }
-.blink-lid2 { animation: lidBlink 4.6s ease-in-out infinite; animation-delay: -0.06s; transform-origin: 50% 0%; transform-box: fill-box; }
+.pet-eye { animation: eyeBlink 5.4s ease-in-out infinite; transform-origin: center; transform-box: fill-box; }
+.pet-gaze { transform: translate(var(--look-x, 0px), var(--look-y, 0px)); }
+.pet-sprite svg .pet-glint { transform-origin: center; transform-box: fill-box; }
+.pet-contact {
+  position: absolute;
+  left: 50%;
+  bottom: 6%;
+  height: 10%;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse, #101020a8 12%, #1512266b 43%, transparent 72%);
+}
 .wing-l { animation: wingFlap 2.6s ease-in-out infinite; transform-origin: 90% 20%; transform-box: fill-box; }
 .wing-r { animation: wingFlap 2.6s ease-in-out infinite reverse; transform-origin: 10% 20%; transform-box: fill-box; }
 .zzz { position: absolute; font-family: var(--font-display); font-weight: 900; color: var(--color-sky); animation: zzzFloat 3.3s ease-out infinite; pointer-events: none; text-shadow: 0 0 10px rgba(142,202,230,0.6); }
@@ -148,8 +152,7 @@ html, body {
 .btn-ghost { background: rgba(51,67,111,0.45); color: var(--color-cream); border-color: rgba(142,202,230,0.2); }
 
 .bar-track { height: 10px; border-radius: 999px; background: rgba(12,18,32,0.75); border: 1px solid rgba(142,202,230,0.12); overflow: hidden; }
-.bar-fill { height: 100%; border-radius: 999px; transition: width 0.7s cubic-bezier(0.22,0.9,0.36,1); position: relative; overflow: hidden; }
-.bar-fill::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg,transparent,rgba(255,255,255,0.35),transparent); background-size: 200% 100%; animation: shimmer 2.8s linear infinite; }
+.bar-fill { height: 100%; border-radius: 999px; transition: width 0.35s ease-out; }
 
 .input-soft {
   width: 100%; padding: 0.75rem 1rem; border-radius: 14px;
@@ -170,7 +173,222 @@ html, body {
 .tab-btn:hover { color: var(--color-cream); }
 
 .text-glow { text-shadow: 0 0 24px rgba(255,217,142,0.45); }
-.room-vignette { background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(8,12,28,0.5) 100%); }
+
+/* Комната и панель питомца */
+.game-shell {
+  background: radial-gradient(ellipse at 20% 0%, #1d2948, transparent 52%), #101628;
+}
+.game-header {
+  padding-top: env(safe-area-inset-top);
+  background: #101628f5;
+}
+.game-nav-button {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  gap: 4px;
+  padding: 4px 3px;
+  border-radius: 11px;
+  color: #b4b9ce;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.game-nav-button[aria-current="page"] { background: #3c3546; color: var(--color-butter); }
+.game-nav-button:hover { color: var(--color-cream); }
+.game-nav-button:focus-visible, .room-action:focus-visible, .pet-sprite:focus-visible {
+  outline: 2px solid var(--color-butter);
+  outline-offset: -2px;
+}
+.room-card {
+  grid-template-rows: minmax(0, 1fr) auto;
+  margin: 10px 10px 0;
+  overflow: hidden;
+  border: 1px solid #70608170;
+  border-radius: 22px;
+  background: #1b1b32;
+  box-shadow: 0 14px 36px #070a1760;
+}
+.room-stage {
+  position: relative;
+  height: clamp(288px, 43dvh, 445px);
+  container-type: size;
+}
+.room-badge.chip {
+  background: #161a30e8;
+  padding: 5px 9px;
+  font-size: 11px;
+  border-color: #f6e1d232;
+}
+.scene-resident {
+  --scene-pet-size: min(82vw, 330px);
+  --scene-pet-size: min(86vw, 79cqh, 410px);
+  bottom: 9%;
+  pointer-events: none;
+}
+.scene-pet-motion { transform-origin: 50% 91%; }
+.scene-pet-motion button, .scene-speech { pointer-events: auto; }
+.scene-message { bottom: 74%; max-width: min(78vw, 350px); }
+.scene-dream { bottom: 64%; }
+.scene-speech {
+  overflow: auto;
+  overflow-wrap: anywhere;
+  max-height: 6.1rem;
+  padding: 9px 13px;
+  border-radius: 14px;
+  background: var(--color-cream);
+  color: #24213a;
+  box-shadow: 0 7px 21px #13142450;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+.room-actions {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 2px;
+  padding: 5px 3px 6px;
+  background: #201d34;
+  border-top: 1px solid #f3d4bb27;
+}
+.room-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+  gap: 4px;
+  border-radius: 10px;
+  color: #dcd8e7;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.room-action svg { color: var(--color-butter); }
+.room-action:hover, .room-action:focus-visible { background: #f4d4ac13; color: var(--color-cream); }
+.room-action:active { background: #f4d4ac24; }
+.room-action:disabled { opacity: .45; cursor: default; }
+
+.room-backdrop {
+  --wall-edge: 59%;
+  --room-light: #ffd7a034;
+  background: linear-gradient(180deg, var(--wall) 0%, var(--wall-deep) var(--wall-edge), var(--floor) var(--wall-edge), var(--floor-deep) 100%);
+}
+.room-backdrop[data-phase="morning"] { --room-light: #ffc99150; }
+.room-backdrop[data-phase="evening"] { --room-light: #ef9a9b34; }
+.room-backdrop[data-phase="night"] { --room-light: #8caff132; }
+.room-wall {
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--wall-edge);
+  border-bottom: 5px solid #1c1b34;
+  box-shadow: 0 2px 0 #ffe4c425, 0 6px 10px #10102355, inset 0 -2px 0 #ffe4c418;
+  background:
+    radial-gradient(ellipse at 26% 40%, var(--room-light), transparent 54%),
+    repeating-linear-gradient(90deg, #ffffff08 0 1px, transparent 1px 9%, #0a0c1a24 9% calc(9% + 1px));
+}
+.room-floor { position: absolute; inset: var(--wall-edge) 0 0; width: 100%; height: calc(100% - var(--wall-edge)); }
+.room-window-light {
+  position: absolute;
+  inset: var(--wall-edge) 0 0;
+  background: radial-gradient(ellipse at 32% 34%, var(--room-light), transparent 63%);
+}
+.room-window {
+  position: absolute;
+  left: 8%;
+  top: clamp(49px, 15%, 112px);
+  width: min(31%, 205px);
+  width: min(31%, 36cqh, 205px);
+  aspect-ratio: .89;
+  border: clamp(4px, 1cqh, 8px) solid #8b6d82;
+  border-bottom-width: 6px;
+  border-radius: 49% 49% 7% 7% / 39% 39% 6% 6%;
+  background: #57445f;
+  box-shadow: 0 0 0 2px #2b203a, 0 9px 17px #10112463, 0 0 44px var(--room-light);
+}
+.room-window-glass {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px #30253e74;
+}
+.room-window-mullion {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent calc(50% - 1.5px), #6a526a calc(50% - 1.5px) calc(50% + 1.5px), transparent calc(50% + 1.5px)),
+    linear-gradient(180deg, transparent 66%, #6a526a 66% 68%, transparent 68%);
+  box-shadow: inset 0 0 12px #16183244;
+}
+.room-window-sill {
+  position: absolute;
+  inset: auto -8% -9px;
+  height: 9px;
+  border-radius: 4px;
+  background: linear-gradient(#a9828d 0 30%, #755a76 30% 100%);
+  box-shadow: 0 4px 5px #18172c60;
+}
+.room-picture, .room-console, .room-rug { position: absolute; }
+.room-picture { right: 12%; top: clamp(64px, 19%, 140px); width: clamp(52px, 16%, 120px); }
+.room-console { right: 7%; bottom: 32%; width: clamp(66px, 25%, 190px); }
+.room-rug { bottom: 7%; left: 50%; width: min(72%, 440px); transform: translateX(-50%); }
+.room-shade {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 49% 61%, transparent 34%, #080e2b42 100%);
+  transition: opacity .8s ease;
+}
+.room-backdrop[data-phase="night"] .room-shade { background: radial-gradient(ellipse at 51% 60%, #080e2b19 20%, #080e2b73 100%); }
+.room-backdrop[data-sleeping] .room-shade { background: radial-gradient(ellipse at 50% 74%, #080e2b19, #080e2baa 100%); }
+.room-mote {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #ffe4bba0;
+  animation: firefly 7s ease-in-out infinite;
+}
+.room-backdrop[data-phase="night"] .room-mote { background: #ffe1a0; box-shadow: 0 0 7px #ffc978; }
+.room-precipitation { position: absolute; opacity: 0; }
+.room-rain { width: 1.5px; height: 10px; background: #d7f1ffad; animation: roomRain 1.25s linear infinite; }
+.room-snow { width: 3px; height: 3px; border-radius: 50%; background: #fff7e8; animation: roomSnow 3s linear infinite; }
+@keyframes roomRain {
+  0% { transform: translate(8px, -30px); opacity: 0; }
+  18% { opacity: .85; }
+  100% { transform: translate(-22px, min(43cqh, 244px)); opacity: .3; }
+}
+@keyframes roomSnow {
+  0% { transform: translateY(-35px); opacity: 0; }
+  22%, 80% { opacity: .84; }
+  100% { transform: translate(12px, min(32cqh, 185px)); opacity: 0; }
+}
+
+@media (min-width: 640px) {
+  .game-nav-button { flex: 0 1 auto; flex-direction: row; gap: 8px; padding-inline: 15px; font-size: 13px; }
+  .room-action { font-size: 11px; min-height: 56px; }
+  .scene-speech { font-size: 13px; }
+}
+@media (min-width: 1024px) {
+  .room-card { margin: 0; border-radius: 26px; max-height: 750px; align-self: start; height: 100%; }
+  .room-stage { height: auto; min-height: 0; }
+  .room-actions { padding: 7px 12px 8px; gap: 6px; }
+  .room-badges { inset-inline: 16px; top: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .room-precipitation { opacity: .58; }
+  .dream-icon { animation: none !important; }
+  .dream-icon ~ .dream-icon { display: none; }
+}
 
 /* полноэкранные оверлеи: обычный отступ 16px + запас под системную панель
    Android («Назад/Домой») и домашний индикатор iPhone */

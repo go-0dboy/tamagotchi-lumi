@@ -83,12 +83,16 @@ function MemoryGame({ onBack, petName }: { onBack: () => void; petName: string }
   const [lock, setLock] = useState(false);
   const [result, setResult] = useState<number | null>(null);
   const firstPick = useRef<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout>>();
 
   const reset = () => {
     const deck = shuffle([...SYMBOLS, ...SYMBOLS]).map((sym, i) => ({ id: i, sym, flipped: false, matched: false }));
     setCards(deck); setMoves(0); setResult(null); firstPick.current = null;
   };
-  useEffect(reset, []);
+  useEffect(() => {
+    reset();
+    return () => clearTimeout(timer.current);
+  }, []);
 
   const flip = (id: number) => {
     if (lock || result !== null) return;
@@ -103,23 +107,17 @@ function MemoryGame({ onBack, petName }: { onBack: () => void; petName: string }
     setMoves(m => m + 1);
     const a = next.find(c => c.id === firstId)!;
     setLock(true);
-    setTimeout(() => {
-      setCards(cs => {
-        const upd = cs.map(c => {
-          if (c.id === id || c.id === firstId) {
-            if (a.sym === card.sym) return { ...c, matched: true };
-            return { ...c, flipped: false };
-          }
-          return c;
-        });
-        if (a.sym === card.sym) sfx.sparkle(); else sfx.sad();
-        if (upd.every(c => c.matched)) {
-          const score = Math.max(8, 34 - (moves + 1) * 2);
-          const reward = engine.finishMinigame('memory', score);
-          setTimeout(() => setResult(reward), 400);
-        }
-        return upd;
-      });
+    timer.current = setTimeout(() => {
+      const matched = a.sym === card.sym;
+      const updated = next.map(c => c.id === id || c.id === firstId
+        ? { ...c, matched, flipped: matched }
+        : c);
+      setCards(updated);
+      if (matched) sfx.sparkle(); else sfx.sad();
+      if (updated.every(c => c.matched)) {
+        const score = Math.max(8, 34 - (moves + 1) * 2);
+        setResult(engine.finishMinigame('memory', score));
+      }
       setLock(false);
     }, 700);
   };
@@ -333,7 +331,7 @@ function EchoGame({ onBack, petName }: { onBack: () => void; petName: string }) 
 }
 
 /* ================= ВИСЕЛЬНИК (классика) ================= */
-const ALPHABET = 'абвгдежзиклмнопрстуфхцчшщъыьэюя'.split('');
+const ALPHABET = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюя'.split('');
 const MAX_ERRORS = 7;
 
 function HangmanGame({ onBack, petName }: { onBack: () => void; petName: string }) {
@@ -367,8 +365,7 @@ function HangmanGame({ onBack, petName }: { onBack: () => void; petName: string 
       setErrors(e);
       if (e >= MAX_ERRORS) {
         setResult('lose');
-        engine.setBubble(`Ох… это было слово «${word}». Запомнил! В следующий раз отгадаем вместе.`);
-        engine.save();
+        engine.showBubble(`Ох… это было слово «${word}». Запомнил! В следующий раз отгадаем вместе.`);
       }
     }
   };

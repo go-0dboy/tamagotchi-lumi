@@ -86,18 +86,95 @@ function defaultState(): GameState {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isStringList(value: unknown): boolean {
+  return Array.isArray(value) && value.every(item => typeof item === 'string');
+}
+
+function restoreState(raw: unknown): GameState | null {
+  if (!isRecord(raw) || raw.version !== 1 || !('pet' in raw)) return null;
+  const defaults = defaultState();
+  const s = { ...defaults, ...(raw as unknown as Partial<GameState>) };
+  if (![s.createdAt, s.lastSeen, s.coins].every(Number.isFinite)
+    || (s.focusEndsAt !== null && !Number.isFinite(s.focusEndsAt)) || !Number.isFinite(s.focusMinutes)) return null;
+  if (s.owner != null && !isRecord(s.owner)) return null;
+  if (s.settings != null && !isRecord(s.settings)) return null;
+  s.owner = { ...defaults.owner, ...s.owner };
+  s.settings = { ...defaults.settings, ...s.settings };
+  s.dialog = { ...defaults.dialog, ...s.dialog };
+  if (typeof s.owner.name !== 'string' || typeof s.owner.city !== 'string'
+    || ![s.owner.favorites, s.owner.facts, s.owner.promises, s.furniture].every(isStringList)
+    || !Array.isArray(s.owner.moods)
+    || typeof s.settings.sound !== 'boolean' || typeof s.settings.reminders !== 'boolean'
+    || !isRecord(s.inventory) || !isRecord(s.counters) || typeof s.roomTheme !== 'string') return null;
+  if (s.owner.geo !== null && (!isRecord(s.owner.geo)
+    || !Number.isFinite(s.owner.geo.lat) || !Number.isFinite(s.owner.geo.lon))) return null;
+
+  const lists = [
+    [s.memories, ['kind', 'text']], [s.diary, ['date', 'text', 'moodWord']],
+    [s.dreams, ['text']], [s.chat, ['from', 'text']],
+    [s.quests, ['metric', 'text']], [s.legacy, ['name', 'epitaph', 'colorPrimary']],
+  ] as const;
+  if (lists.some(([items, keys]) => !Array.isArray(items)
+    || items.some(item => !isRecord(item) || keys.some(key => typeof item[key] !== 'string')))) return null;
+  if (s.pendingWelcome !== null && (!isRecord(s.pendingWelcome) || typeof s.pendingWelcome.line !== 'string'
+    || !Number.isFinite(s.pendingWelcome.awayMs) || !Array.isArray(s.pendingWelcome.events)
+    || s.pendingWelcome.events.some(event => !isRecord(event) || typeof event.text !== 'string'))) return null;
+  if (s.pendingFarewell !== null && (!isRecord(s.pendingFarewell) || typeof s.pendingFarewell.name !== 'string'
+    || typeof s.pendingFarewell.epitaph !== 'string')) return null;
+  if (s.weatherReal !== null && (!isRecord(s.weatherReal)
+    || typeof s.weatherReal.kind !== 'string' || typeof s.weatherReal.label !== 'string'
+    || !Number.isFinite(s.weatherReal.at))) return null;
+
+  const p = s.pet;
+  if (p !== null) {
+    if (!isRecord(p) || typeof p.id !== 'string' || typeof p.name !== 'string'
+      || !isRecord(p.dna) || typeof p.dna.species !== 'string'
+      || !isRecord(p.stats) || !isRecord(p.growth) || !Number.isFinite(p.growth.bornAt)
+      || (p.personality != null && !isRecord(p.personality))) return null;
+    const statsDefaults = { hunger: 70, energy: 85, mood: 78, cleanliness: 90 };
+    const growthDefaults = { xp: 0, level: 1, skills: {} };
+    const outfitDefaults = { hat: null, scarf: null, glasses: null, wings: null };
+    const personalityDefaults = { temperament: 'любопытный', likes: [], dislikes: [], traits: ['любопытный'] };
+    s.pet = {
+      ...p,
+      stats: { ...statsDefaults, ...p.stats },
+      growth: { ...growthDefaults, ...p.growth },
+      outfit: { ...outfitDefaults, ...p.outfit },
+      personality: { ...personalityDefaults, ...p.personality },
+      knowledge: p.knowledge ?? [],
+      wordsLearned: p.wordsLearned ?? [],
+      evolutionTraits: p.evolutionTraits ?? [],
+    };
+    const { stats, growth, personality } = s.pet;
+    if (!Object.values(stats).every(Number.isFinite) || !Number.isFinite(growth.xp)
+      || !Number.isFinite(growth.level) || !isRecord(growth.skills)
+      || ![personality.likes, personality.dislikes, personality.traits, s.pet.knowledge,
+        s.pet.wordsLearned, s.pet.evolutionTraits].every(isStringList)) return null;
+  }
+
+  s.fx = null;
+  s.bubble = null;
+  return s;
+}
+
 class Engine {
   state: GameState = defaultState();
   private listeners = new Set<() => void>();
   private lm: MiniLM | null = null; // языковая нейросеть питомца
   private brainDirty = false;
+  private paused = false;
+  private weatherRequest = 0;
 
   constructor() { this.load(); }
 
   subscribe(fn: () => void) { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; }
   private emit() { this.listeners.forEach(fn => fn()); }
   save() {
-    this.state.lastSeen = Date.now();
+    if (!this.paused) this.state.lastSeen = Date.now();
     try { localStorage.setItem(KEY, JSON.stringify(this.state)); } catch { /* приватный режим */ }
     // мозг сохраняется вместе с состоянием, когда он чему-то научился
     if (this.brainDirty) { this.saveBrain(); this.brainDirty = false; }
@@ -106,60 +183,39 @@ class Engine {
     try {
       const raw = localStorage.getItem(KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as GameState;
-      if (!parsed || parsed.version !== 1 || typeof parsed !== 'object') return;
-      // строгая валидация: повреждённый или слишком старый сейв отбрасываем,
-      // чтобы игра всегда запускалась
-      if (!this.isValid(parsed)) { localStorage.removeItem(KEY); return; }
-      this.state = { ...defaultState(), ...parsed };
-      const s = this.state;
-      const d = defaultState();
-      const fill = <T extends object>(def: T, v: Partial<T> | null | undefined): T => ({ ...def, ...(v ?? {}) });
-      s.owner = fill(d.owner, s.owner);
-      s.settings = fill(d.settings, s.settings);
-      if (s.pet) {
-        s.pet.stats = fill({ hunger: 70, energy: 85, mood: 78, cleanliness: 90 }, s.pet.stats);
-        s.pet.growth = fill({ xp: 0, level: 1, bornAt: Date.now(), skills: {} as Record<string, number> }, s.pet.growth);
-        s.pet.outfit = fill<Pet['outfit']>({ hat: null, scarf: null, glasses: null, wings: null }, s.pet.outfit);
-        s.pet.personality = fill<Pet['personality']>({ temperament: 'любопытный', likes: [], dislikes: [], traits: ['любопытный'] }, s.pet.personality);
-        s.pet.knowledge = Array.isArray(s.pet.knowledge) ? s.pet.knowledge : [];
-        s.pet.wordsLearned = Array.isArray(s.pet.wordsLearned) ? s.pet.wordsLearned : [];
-        s.pet.evolutionTraits = Array.isArray(s.pet.evolutionTraits) ? s.pet.evolutionTraits : [];
-      }
-      s.inventory = (s.inventory && typeof s.inventory === 'object') ? s.inventory : {};
-      s.furniture = Array.isArray(s.furniture) ? s.furniture : ['furn_rug'];
-      s.counters = (s.counters && typeof s.counters === 'object') ? s.counters : {};
-      s.fx = null;
-    } catch {
-      try { localStorage.removeItem(KEY); } catch { /* noop */ }
-    }
+      this.state = restoreState(JSON.parse(raw)) ?? this.state;
+    } catch { /* браузер может запретить доступ к хранилищу */ }
   }
 
-  private isValid(s: GameState): boolean {
-    if (!Array.isArray(s.memories) || !Array.isArray(s.diary) || !Array.isArray(s.dreams) || !Array.isArray(s.quests)) return false;
-    if (s.owner && typeof s.owner !== 'object') return false;
-    const p = s.pet as Pet | null;
-    if (p) {
-      if (!p.dna || typeof p.dna !== 'object' || typeof p.dna.species !== 'string') return false;
-      if (!p.stats || typeof p.stats !== 'object') return false;
-      if (!p.growth || typeof p.growth !== 'object' || typeof p.growth.bornAt !== 'number') return false;
-      if (!p.personality || !Array.isArray(p.personality.likes)) return false;
-    }
-    return true;
-  }
   private commit() { this.save(); this.emit(); }
 
   /* ---------- жизненный цикл ---------- */
   start() {
-    const now = Date.now();
-    if (this.state.pet && !this.state.pet.transcended && now - this.state.lastSeen > 10 * 60000) {
-      this.simulateOffline(now - this.state.lastSeen);
-    }
-    this.state.lastSeen = now;
-    this.ensureQuests();
-    this.initBrain();
+    setSoundEnabled(this.state.settings.sound);
+    if (!this.lm) this.initBrain();
+    this.reconcileTime();
+  }
+
+  pause() {
+    if (this.paused) return;
     this.save();
-    this.emit();
+    this.paused = true;
+  }
+
+  resume() {
+    if (!this.paused) return;
+    this.paused = false;
+    this.reconcileTime();
+  }
+
+  private reconcileTime() {
+    const elapsed = Date.now() - this.state.lastSeen;
+    if (this.state.pet && !this.state.pet.transcended && elapsed > 10 * 60000) {
+      this.simulateOffline(elapsed);
+    }
+    this.checkDayChange();
+    this.ensureQuests();
+    this.commit();
   }
 
   /* ==================== нейросеть питомца ==================== */
@@ -172,9 +228,14 @@ class Engine {
         if (loaded) { this.lm = loaded; return; }
       }
     } catch { /* повреждённый мозг — вырастим новый */ }
+    this.createBrain();
+  }
+
+  private createBrain() {
+    const corpus = baseCorpus();
     const lm = new MiniLM();
-    lm.buildVocab(baseCorpus());
-    lm.train(baseCorpus(), 3, 0.12); // предобучение: сеть сразу говорит связно
+    lm.buildVocab(corpus);
+    lm.train(corpus, 3, 0.12); // предобучение: сеть сразу говорит связно
     this.lm = lm;
     this.saveBrain();
   }
@@ -273,12 +334,12 @@ class Engine {
    */
   async sleepLearn(): Promise<boolean> {
     const p = this.state.pet;
-    if (!p || !p.sleeping || p.transcended) return false;
-    if (!this.lm) return false;
+    const brain = this.lm;
+    if (this.paused || !brain || !p || !p.sleeping || p.transcended) return false;
     const fact = await fetchWikiFact();
-    if (!fact) return false; // нет интернета — тихо пропускаем
-    this.lm.learnLine(fact.title);
-    this.lm.learnLine(fact.text);
+    if (!fact || this.paused || this.state.pet !== p || this.lm !== brain || !p.sleeping || p.transcended) return false;
+    brain.learnLine(fact.title);
+    brain.learnLine(fact.text);
     // изредка фиксируем выученное как знание питомца
     if (Math.random() < 0.5) {
       p.knowledge = [...new Set([...p.knowledge, 'fact:' + fact.title])].slice(-300);
@@ -289,11 +350,16 @@ class Engine {
   }
 
   tick() {
+    if (this.paused) return;
     const s = this.state;
     const p = s.pet;
-    if (!p || p.transcended) { this.checkDayChange(); return; }
+    if (!p || p.transcended) {
+      if (this.checkDayChange()) this.commit();
+      return;
+    }
     const phase = timePhase();
     const night = phase === 'night';
+    const wasSleeping = p.sleeping;
 
     if (p.sleeping) {
       const fast = this.has('deep_sleep') || this.has('cozy_den') || this.has('ember_heart');
@@ -330,7 +396,8 @@ class Engine {
     }
 
     // фокус-таймер
-    if (s.focusEndsAt && Date.now() >= s.focusEndsAt) {
+    const finishedFocus = s.focusEndsAt !== null && Date.now() >= s.focusEndsAt;
+    if (finishedFocus) {
       s.focusEndsAt = null;
       const mins = s.focusMinutes || 15;
       const reward = 10 + mins;
@@ -342,12 +409,13 @@ class Engine {
       sfx.levelup();
     }
 
-    this.checkDayChange();
+    if (this.checkDayChange() || finishedFocus || wasSleeping !== p.sleeping) this.save();
+    this.emit();
   }
 
   private checkDayChange() {
     const today = dayKeyOf(Date.now());
-    if (this.state.dayKey === today) return;
+    if (this.state.dayKey === today) return false;
     const s = this.state;
     const p = s.pet;
     if (p) {
@@ -368,8 +436,7 @@ class Engine {
     s.dayKey = today;
     s.counters = {};
     this.ensureQuests();
-    this.save();
-    this.emit();
+    return true;
   }
 
   /* ---------- офлайн-симуляция ---------- */
@@ -507,7 +574,8 @@ class Engine {
   }
 
   /* ---------- уход ---------- */
-  setBubble(text: string) { this.state.bubble = { text, at: Date.now() }; }
+  private setBubble(text: string) { this.state.bubble = { text, at: Date.now() }; }
+  showBubble(text: string) { this.setBubble(text); this.commit(); }
   clearBubble() { if (this.state.bubble) { this.state.bubble = null; this.emit(); } }
   clearFx() { if (this.state.fx) { this.state.fx = null; this.emit(); } }
 
@@ -684,28 +752,34 @@ class Engine {
 
   /* ---------- реальная погода (Open-Meteo) ---------- */
   async refreshWeather() {
-    const o = this.state.owner;
-    let lat: number | undefined = o.geo?.lat, lon: number | undefined = o.geo?.lon;
-    const city = o.city;
+    const owner = this.state.owner;
+    const city = owner.city;
+    const request = ++this.weatherRequest;
+    const isCurrent = () => request === this.weatherRequest && owner === this.state.owner && city === owner.city;
+    let geo = owner.geo;
+    let label = city;
     try {
-      if (lat == null && city.trim()) {
+      if (!geo && city.trim()) {
         const g = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city.trim())}&count=1&language=ru&format=json`);
+        if (!g.ok) return;
         const gd = await g.json();
         const r = gd?.results?.[0];
-        if (r && typeof r.latitude === 'number' && typeof r.longitude === 'number') {
-          lat = r.latitude; lon = r.longitude;
-          o.geo = { lat: r.latitude, lon: r.longitude };
-          if (r.name) o.city = r.name;
+        if (Number.isFinite(r?.latitude) && Number.isFinite(r?.longitude)) {
+          geo = { lat: r.latitude, lon: r.longitude };
+          if (typeof r.name === 'string') label = r.name;
         }
       }
-      if (lat == null || lon == null) return;
-      const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`);
+      if (!geo || !isCurrent()) return;
+      const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${geo.lat}&longitude=${geo.lon}&current=temperature_2m,weather_code&timezone=auto`);
+      if (!w.ok) return;
       const wd = await w.json();
       const code = wd?.current?.weather_code as number | undefined;
       const temp = wd?.current?.temperature_2m as number | undefined;
-      if (typeof code !== 'number') return;
+      if (typeof code !== 'number' || !isCurrent()) return;
+      owner.geo = geo;
+      owner.city = label;
       this.state.weatherReal = { kind: mapWmo(code), label: wmoLabel(code, temp), temp: typeof temp === 'number' ? Math.round(temp) : 0, at: Date.now() };
-      this.save(); this.emit();
+      this.commit();
     } catch { /* нет сети — живём по сезонной погоде */ }
   }
 
@@ -742,10 +816,13 @@ class Engine {
   buy(itemId: string): { ok: boolean; msg: string } {
     const s = this.state;
     const item = SHOP.find(i => i.id === itemId); if (!item) return { ok: false, msg: '' };
+    if (item.kind === 'furniture' && s.furniture.includes(itemId)) {
+      return { ok: false, msg: 'Этот предмет уже в комнате.' };
+    }
     if (s.coins < item.price) return { ok: false, msg: `Не хватает искр: нужно ${item.price}.` };
     s.coins -= item.price;
     if (item.kind === 'furniture') {
-      if (!s.furniture.includes(itemId)) s.furniture = [...s.furniture, itemId];
+      s.furniture = [...s.furniture, itemId];
       this.setBubble(`Ого, ${item.name.toLowerCase()}! Комната стала ещё уютнее.`);
     } else {
       this.inv(itemId, 1);
@@ -877,12 +954,14 @@ class Engine {
     let brain: ReturnType<typeof chatBrain> | null = null;
     try {
       fact = await this.webKnowledge(text);
+      if (this.state !== s || s.pet !== p) return;
       brain = chatBrain(text, s, fact);
       lines = brain.lines;
     } catch (e) {
       console.error('Люмос: ошибка в чат-мозге', e);
       lines = [];
     }
+    if (this.state !== s || s.pet !== p) return;
     if (!lines.length) lines = ['Ой… я на секунду запутался в мыслях. Расскажешь ещё раз?'];
 
     if (brain?.save) this.addMemory(brain.save.kind, brain.save.text);
@@ -911,6 +990,7 @@ class Engine {
 
     replyLines.forEach((line, i) => {
       setTimeout(() => {
+        if (this.state !== s || s.pet !== p) return;
         s.chat.push({ id: uid(), from: 'pet', text: line, at: Date.now() });
         s.chat = s.chat.slice(-60);
         if (i === 0) this.setBubble(line.length > 60 ? line.slice(0, 57) + '…' : line);
@@ -964,11 +1044,9 @@ class Engine {
   }
   completeReveal() { this.state.freshHatch = false; this.commit(); }
 
-  private transcend() {
-    const s = this.state; const p = s.pet; if (!p) return;
-    p.transcended = true;
+  private legacyEntry(p: Pet): LegacyEntry {
     const days = Math.floor((Date.now() - p.growth.bornAt) / 86400000);
-    const entry: LegacyEntry = {
+    return {
       id: uid(),
       name: p.name,
       species: speciesOf(p.dna.species).label,
@@ -979,14 +1057,19 @@ class Engine {
       epitaph: `${p.name} прожил${days > 1 ? ' долгую' : ''} счастливую жизнь длиной в ${days} дней и стал духом памяти. ${p.evolutionTraits.length ? `Его черты — ${p.evolutionTraits.join(', ')} — остались с нами.` : 'Он умел радоваться мелочам. Это главное.'}`,
       at: Date.now(),
     };
-    s.pendingFarewell = entry;
+  }
+
+  private transcend() {
+    const p = this.state.pet; if (!p) return;
+    p.transcended = true;
+    this.state.pendingFarewell = this.legacyEntry(p);
     sfx.chime();
   }
 
   startNewGeneration(): LegacyEntry | null {
     const s = this.state; const p = s.pet;
-    if (!p || !p.transcended || !s.pendingFarewell) return null;
-    const entry = s.pendingFarewell;
+    if (!p || !p.transcended) return null;
+    const entry = s.pendingFarewell ?? this.legacyEntry(p);
     s.legacy.unshift(entry);
     s.legacy = s.legacy.slice(0, 12);
     s.inherit = { color: entry.colorPrimary, species: p.dna.species };
@@ -1012,30 +1095,25 @@ class Engine {
   importSave(code: string): boolean {
     try {
       const parsed = JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
-      // новый формат: { __lumos: 2, state, brain }
-      if (parsed && parsed.__lumos === 2 && parsed.state && parsed.state.version === 1) {
-        this.state = { ...defaultState(), ...parsed.state };
-        if (parsed.brain) {
-          const lm = MiniLM.deserialize(parsed.brain);
-          if (lm) { this.lm = lm; this.saveBrain(); }
-        }
-        this.save(); this.emit();
-        return true;
-      }
-      // старый формат: просто состояние
-      if (parsed && parsed.version === 1) {
-        this.state = { ...defaultState(), ...parsed };
-        this.save(); this.emit();
-        return true;
-      }
-      return false;
+      const packaged = parsed?.__lumos === 2;
+      const next = restoreState(packaged ? parsed.state : parsed);
+      if (!next) return false;
+      const brain = packaged && parsed.brain ? MiniLM.deserialize(parsed.brain) : null;
+      this.state = next;
+      setSoundEnabled(next.settings.sound);
+      if (brain) { this.lm = brain; this.saveBrain(); this.brainDirty = false; }
+      this.commit();
+      if (next.owner.city && !next.weatherReal) void this.refreshWeather();
+      return true;
     } catch { return false; }
   }
   resetAll() {
     try { localStorage.removeItem(KEY); localStorage.removeItem(BRAIN_KEY); } catch { /* noop */ }
     this.state = defaultState();
+    setSoundEnabled(this.state.settings.sound);
     this.lm = null;
-    this.initBrain();
+    this.brainDirty = false;
+    this.createBrain();
     this.emit();
   }
 }

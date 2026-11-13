@@ -25,14 +25,15 @@ export default function ChatPanel({ state }: { state: GameState }) {
   /* автопрокрутка к последнему сообщению. Следим за id последнего сообщения,
      а не за длиной: когда чат достигает 60 сообщений, длина перестаёт меняться
      (старые обрезаются), и прокрутка по length больше не срабатывала. */
-  const lastMsgId = state.chat.length ? state.chat[state.chat.length - 1].id : '';
+  const lastMessage = state.chat[state.chat.length - 1];
+  const lastMsgId = lastMessage?.id ?? '';
   useEffect(() => {
     const el = logRef.current;
     if (!el) return;
-    // двойной rAF: дожидаемся, пока новое сообщение отрисуется и обновится scrollHeight
-    const raf = requestAnimationFrame(() => requestAnimationFrame(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-    }));
+    const raf = requestAnimationFrame(() => {
+      const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      el.scrollTo({ top: el.scrollHeight, behavior: reduceMotion ? 'instant' : 'smooth' });
+    });
     return () => cancelAnimationFrame(raf);
   }, [lastMsgId]);
 
@@ -52,8 +53,7 @@ export default function ChatPanel({ state }: { state: GameState }) {
           setCycles(c);
           if (c >= 4) {
             setBreathing(false);
-            engine.setBubble('Вот это спокойствие! Я чуть не уснул от умиротворения.');
-            engine.save();
+            engine.showBubble('Вот это спокойствие! Я чуть не уснул от умиротворения.');
             return;
           }
         }
@@ -81,12 +81,12 @@ export default function ChatPanel({ state }: { state: GameState }) {
 
   /* «печатает…»: включаем при отправке, гасим, когда пришёл ответ питомца */
   const [typing, setTyping] = useState(false);
-  const sentLen = useRef(state.chat.length);
+  const sentAfter = useRef('');
   useEffect(() => {
-    if (typing && state.chat.length > sentLen.current && state.chat[state.chat.length - 1].from === 'pet') {
+    if (typing && lastMessage?.from === 'pet' && lastMsgId !== sentAfter.current) {
       setTyping(false);
     }
-  }, [state.chat, typing]);
+  }, [lastMessage, lastMsgId, typing]);
   /* страховка: даже если ответ потерялся, точки гаснут максимум через 8 с */
   useEffect(() => {
     if (!typing) return;
@@ -97,7 +97,7 @@ export default function ChatPanel({ state }: { state: GameState }) {
   const send = (raw?: string) => {
     const t = (raw ?? text).trim();
     if (!t) return;
-    sentLen.current = state.chat.length;
+    sentAfter.current = lastMsgId;
     setTyping(true);
     engine.sendChat(t);
     setText('');

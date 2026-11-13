@@ -2,7 +2,8 @@
  * ЛЮМОС — карманный дух-компаньон.
  * Корневой компонент: игровой цикл, сцена, навигация, оверлеи.
  * ============================================================ */
-import { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from 'react';
+import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { engine, timePhase, getWeather } from './game/engine';
 import { initializeNative } from './native/platform';
 import { initPwa } from './native/pwa';
@@ -10,16 +11,17 @@ import PetSprite from './components/PetSprite';
 import RoomScene from './components/Room';
 import HUD from './components/HUD';
 import CarePanel from './components/Panels';
-import Minigames from './components/Minigames';
-import ChatPanel from './components/Chat';
-import Journal from './components/Journal';
-import DesignDoc from './components/DesignDoc';
-import Learning from './components/Learning';
-import Walk from './components/Walk';
 import { Onboarding, WelcomeBack, Farewell, RevealSheet, SettingsModal } from './components/Screens';
 import Icon from './components/icons';
 import { sfx } from './game/sound';
 import { proactiveLine } from './game/speech';
+
+const Minigames = lazy(() => import('./components/Minigames'));
+const ChatPanel = lazy(() => import('./components/Chat'));
+const Journal = lazy(() => import('./components/Journal'));
+const DesignDoc = lazy(() => import('./components/DesignDoc'));
+const Learning = lazy(() => import('./components/Learning'));
+const Walk = lazy(() => import('./components/Walk'));
 
 const TABS = [
   { id: 'scene', label: 'Комната', icon: 'home' },
@@ -28,7 +30,7 @@ const TABS = [
   { id: 'chat', label: 'Болталка', icon: 'chat' },
   { id: 'journal', label: 'Дневник', icon: 'diary' },
   { id: 'doc', label: 'Док', icon: 'book' },
-];
+] as const;
 
 const PHASE_LABEL = { morning: 'Утро', day: 'День', evening: 'Вечер', night: 'Ночь' } as const;
 const PHASE_ICON = { morning: 'sun', day: 'sun', evening: 'cloud', night: 'moon' } as const;
@@ -39,9 +41,9 @@ function Game() {
   const [showSettings, setShowSettings] = useState(false);
   const [showLearning, setShowLearning] = useState(false);
   const [showWalk, setShowWalk] = useState(false);
-  const [squishAt, setSquishAt] = useState(0);
   const [sleepLearning, setSleepLearning] = useState(false);
-  const [, force] = useState(0);
+  const petMotion = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
 
   const seasonal = useMemo(() => getWeather(), []);
   const weather = s.weatherReal && Date.now() - s.weatherReal.at < 3 * 3600000
@@ -50,41 +52,59 @@ function Game() {
   const phase = timePhase();
 
   useEffect(() => {
+    const unsub = engine.subscribe(() => setS({ ...engine.state }));
     try { engine.start(); } catch (e) { console.error('Ошибка старта движка:', e); }
     /* нативная платформа (Capacitor): сплэш, статус-бар, пуши, жизненный цикл.
        В браузере — мгновенный no-op, веб-версия ничего не чувствует. */
     void initializeNative();
     /* PWA-слой: service worker + перехват «Установить приложение» */
     initPwa();
-    const unsub = engine.subscribe(() => { setS({ ...engine.state }); force(x => x + 1); });
     const loop = setInterval(() => engine.tick(), 4000);
-    const saveInt = setInterval(() => engine.save(), 30000);
+    const saveInt = setInterval(() => { if (!document.hidden) engine.save(); }, 30000);
     const speak = setInterval(() => {
       if (!engine.state.settings.reminders) return;
       const p = engine.state.pet;
       if (p && !p.sleeping && !p.transcended && !document.hidden) {
         const line = engine.smartProactive() ?? proactiveLine(engine.state);
-        engine.setBubble(line);
-        engine.save();
+        engine.showBubble(line);
       }
     }, 40000);
-    const onHide = () => { if (document.hidden) engine.save(); };
-    const onUnload = () => engine.save();
-    document.addEventListener('visibilitychange', onHide);
-    window.addEventListener('beforeunload', onUnload);
-    void engine.refreshWeather();
-    const weatherInt = setInterval(() => void engine.refreshWeather(), 30 * 60000);
+    const pause = () => engine.pause();
+    const resume = () => { if (!document.hidden) engine.resume(); };
+    const onVisibility = () => { if (document.hidden) pause(); else resume(); };
+    if (!Capacitor.isNativePlatform()) {
+      onVisibility();
+      document.addEventListener('visibilitychange', onVisibility);
+      window.addEventListener('pagehide', pause);
+      window.addEventListener('pageshow', resume);
+    }
+    const refreshWeather = () => { if (!document.hidden) void engine.refreshWeather(); };
+    refreshWeather();
+    const weatherInt = setInterval(refreshWeather, 30 * 60000);
     return () => {
       unsub(); clearInterval(loop); clearInterval(speak); clearInterval(saveInt); clearInterval(weatherInt);
-      document.removeEventListener('visibilitychange', onHide);
-      window.removeEventListener('beforeunload', onUnload);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', pause);
+      window.removeEventListener('pageshow', resume);
     };
   }, []);
 
-  /* «подпрыгивание» питомца при поглаживании */
+  /* Реакция на поглаживание сохраняет фокус на кнопке питомца. */
   useEffect(() => {
-    if (s.fx?.kind === 'pet') setSquishAt(s.fx.at);
+    if (s.fx?.kind !== 'pet' || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const animation = petMotion.current?.animate([
+      { transform: 'scale(1)' },
+      { transform: 'scale(1.08, 0.9)', offset: 0.28 },
+      { transform: 'scale(0.97, 1.06)', offset: 0.56 },
+      { transform: 'scale(1)' },
+    ], { duration: 500, easing: 'ease-out' });
+    return () => animation?.cancel();
   }, [s.fx]);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    if (panel.current) panel.current.scrollTop = 0;
+  }, [tab]);
 
   /* одноразовые эффекты (сердца/метла/пузыри) гаснут после проигрывания */
   useEffect(() => {
@@ -103,25 +123,38 @@ function Game() {
   /* самообучение нейросети во сне: пока питомец спит, каждые 20 с
      читаем статью из Википедии и дообучаем мозг (нужен интернет) */
   const petSleeping = !!s.pet?.sleeping && !s.pet.transcended;
+  const petId = s.pet?.id;
   useEffect(() => {
-    if (!petSleeping) { setSleepLearning(false); return; }
+    setSleepLearning(false);
+    if (!petSleeping) return;
     let alive = true;
+    let pending = false;
     const learn = async () => {
-      const ok = await engine.sleepLearn();
-      if (alive) setSleepLearning(ok);
+      if (pending || document.hidden) return;
+      pending = true;
+      try {
+        const ok = await engine.sleepLearn();
+        if (alive) setSleepLearning(ok);
+      } finally {
+        pending = false;
+      }
     };
     void learn();
     const iv = setInterval(() => void learn(), 20000);
     return () => { alive = false; clearInterval(iv); };
-  }, [petSleeping]);
+  }, [petSleeping, petId]);
 
-  /* горячие клавиши для ПК: 1–7 повторяют кнопки под сценой */
+  const overlayOpen = showSettings || showLearning || showWalk || s.freshHatch || !!s.pendingFarewell
+    || (!!s.pendingWelcome && !s.pet?.transcended);
+  /* Горячие клавиши повторяют доступность кнопок сцены. */
   useEffect(() => {
+    if (overlayOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      if (e.repeat || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+      if (e.target instanceof HTMLElement && (e.target.isContentEditable || e.target.closest('input, textarea, select'))) return;
       const p = engine.state.pet;
       if (!p || p.transcended) return;
+      if (p.sleeping && e.key !== '3' && e.key !== '5') return;
       switch (e.key) {
         case '1': setTab('care'); sfx.tap(); break;
         case '2': engine.petStroke(); break;
@@ -134,16 +167,21 @@ function Game() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [overlayOpen]);
 
   if (!s.pet) return <Onboarding />;
 
   const pet = s.pet;
   const ageDays = Math.max(0, Math.floor((Date.now() - pet.growth.bornAt) / 86400000));
+  const roomStatus = pet.transcended ? 'Память о питомце хранится в дневнике.'
+    : pet.sleeping ? `${pet.name} спит и восстанавливает энергию.`
+    : pet.stats.hunger < 35 ? `${pet.name} проголодался. Загляните на кухню.`
+    : pet.stats.cleanliness < 55 ? `${pet.name} пора искупать.`
+    : `${pet.name} готов поиграть или отправиться на прогулку.`;
   const newGeneration = () => engine.startNewGeneration();
 
   return (
-    <div className="min-h-dvh lg:h-dvh lg:flex lg:flex-col lg:overflow-hidden" style={{ background: 'radial-gradient(ellipse at 20% 0%, #1c2a52 0%, #10172b 55%)' }}>
+    <div className="game-shell min-h-dvh lg:h-dvh lg:flex lg:flex-col lg:overflow-hidden">
       {/* ------- оверлеи ------- */}
       {s.freshHatch && (
         <RevealSheet pet={pet} onDone={() => engine.completeReveal()} />
@@ -155,18 +193,19 @@ function Game() {
         <Farewell entry={s.pendingFarewell} onNewGen={newGeneration} onKeep={() => engine.dismissFarewell()} />
       )}
       {showSettings && <SettingsModal state={s} onClose={() => setShowSettings(false)} />}
-      {showLearning && pet && !pet.transcended && <Learning petName={pet.name} onClose={() => setShowLearning(false)} />}
-      {showWalk && pet && !pet.transcended && <Walk onClose={() => setShowWalk(false)} />}
+      <Suspense fallback={<div className="fixed inset-0 z-50 grid place-items-center bg-night-950/90"><PanelLoading /></div>}>
+        {showLearning && !pet.transcended && <Learning petName={pet.name} onClose={() => setShowLearning(false)} />}
+        {showWalk && !pet.transcended && <Walk onClose={() => setShowWalk(false)} />}
+      </Suspense>
 
       {/* ================= НАВИГАЦИЯ СВЕРХУ ================= */}
       {/* Отступ под безопасную зону: на Android статус-бар занимает своё место
           (inset = 0), на iOS env(safe-area-inset-top) компенсирует «чёлку». */}
-      <header className="sticky top-0 z-30 border-b border-sky/10 shrink-0"
-        style={{ background: 'rgba(12,18,32,0.85)', backdropFilter: 'blur(12px)', paddingTop: 'env(safe-area-inset-top)' }}>
-        <nav className="max-w-[1280px] mx-auto flex items-center justify-center gap-0.5 sm:gap-1 px-1.5 py-1.5">
+      <header className="game-header sticky top-0 z-30 border-b border-sky/10 shrink-0">
+        <nav aria-label="Разделы игры" className="max-w-[1280px] mx-auto flex items-center justify-center gap-0.5 sm:gap-1.5 px-1.5 py-1">
           {TABS.map(t => (
-            <button key={t.id} onClick={() => { setTab(t.id as typeof tab); sfx.tap(); }}
-              className={`flex-1 sm:flex-none flex flex-col sm:flex-row items-center gap-0.5 sm:gap-1.5 px-1 sm:px-3.5 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl text-[9px] sm:text-[12px] font-extrabold leading-none transition-all whitespace-nowrap ${tab === t.id ? 'bg-butter/15 text-butter' : 'text-cream/50 hover:text-cream hover:bg-night-700/60'}`}>
+            <button key={t.id} aria-current={tab === t.id ? 'page' : undefined} onClick={() => { setTab(t.id); sfx.tap(); }}
+              className="game-nav-button">
               <Icon name={t.icon} className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
               {t.label}
             </button>
@@ -174,94 +213,86 @@ function Game() {
         </nav>
       </header>
 
-      <div className="lg:flex-1 lg:min-h-0 lg:grid lg:grid-cols-[minmax(0,1fr)_440px] lg:grid-rows-[minmax(0,1fr)] lg:gap-4 lg:p-4 lg:pt-2.5 lg:max-w-[1280px] lg:mx-auto lg:w-full">
+      <main className="lg:flex-1 lg:min-h-0 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(350px,36%)] lg:grid-rows-[minmax(0,1fr)] lg:gap-5 lg:p-5 lg:max-w-[1280px] lg:mx-auto lg:w-full">
         {/* ================= СЦЕНА ================= */}
-        <div className="relative h-[46dvh] min-h-[330px] sm:h-[50dvh] sm:min-h-[380px] lg:h-full lg:min-h-0 overflow-hidden border-b lg:border border-sky/10 lg:rounded-[28px]">
-          <RoomScene themeId={s.roomTheme} furniture={s.furniture} phase={phase} weather={weather}
-            sleeping={pet.sleeping} cleanliness={pet.stats.cleanliness}>
-            {/* инфо-чипы сцены */}
-            <div className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3 flex gap-1.5 sm:gap-2 z-20">
-              <span className="chip !text-[11px] backdrop-blur-sm bg-night-900/60"><Icon name={PHASE_ICON[phase]} className="w-3.5 h-3.5 text-butter" />{PHASE_LABEL[phase]}</span>
-              <span className="chip !text-[11px] backdrop-blur-sm bg-night-900/60 text-cream/70">день {ageDays + 1}</span>
-            </div>
-            {pet.sleeping && <span className="chip absolute top-2.5 sm:top-3 right-2.5 sm:right-3 z-20 bg-night-900/60 text-sky"><Icon name="sleep" className="w-3.5 h-3.5" />спит</span>}
-
-            {/* реплика — закреплена сверху сцены: никогда не вылетает за край */}
-            {/* питомец */}
-            {pet.transcended ? (
-              <div className="absolute inset-x-0 bottom-[16%] flex flex-col items-center gap-4 z-10 px-6">
-                <div className="anim-float">
-                  <span className="block w-16 h-16 rounded-full flex items-center justify-center" style={{ background: `${pet.dna.colorPrimary}2e`, boxShadow: `0 0 50px ${pet.dna.colorPrimary}66` }}>
-                    <Icon name="star" className="w-9 h-9 text-butter" />
-                  </span>
-                </div>
-                <p className="text-[13px] font-bold text-cream/60 text-center">Здесь живёт память о {pet.name}. Дерево наследия цветёт.</p>
-                <button className="btn btn-primary" onClick={newGeneration}><Icon name="spark" className="w-5 h-5" />Новое яйцо</button>
+        <section aria-label="Комната питомца" className={`room-card ${tab === 'scene' ? 'grid' : 'hidden lg:grid'}`}>
+          <div className="room-stage">
+            <RoomScene themeId={s.roomTheme} furniture={s.furniture} phase={phase} weatherKind={weather.kind}
+              sleeping={pet.sleeping} cleanliness={pet.stats.cleanliness}>
+              {/* инфо-чипы сцены */}
+              <div className="room-badges absolute inset-x-3 top-3 flex flex-wrap gap-1.5 z-20">
+                <span className="chip room-badge"><Icon name={PHASE_ICON[phase]} className="w-3.5 h-3.5 text-butter" />{PHASE_LABEL[phase]}</span>
+                <span className="chip room-badge text-cream/75">День {ageDays + 1}</span>
+                {pet.sleeping && <span className="chip room-badge ml-auto text-sky"><Icon name="sleep" className="w-3.5 h-3.5" />спит</span>}
               </div>
-            ) : (
-              <div className="absolute inset-x-0 bottom-[84px] sm:bottom-[92px] lg:bottom-[70px] flex justify-center z-10">
-                <div className="relative">
-                  {/* Реплика привязана к питомцу. bottom задан ПРОЦЕНТОМ от высоты
-                      спрайта (78% ≈ макушка), а не bottom-full — так облачко всегда
-                      сидит на голове и не улетает к верху окна на любом разрешении.
-                      Внешний div — только позиционирование (без анимации transform),
-                      внутренний — анимация появления. Хвостик указывает на голову. */}
-                  {s.bubble && (
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[78%] w-max max-w-[min(380px,86vw)] z-30 pointer-events-none">
-                      <div key={s.bubble.at} className="anim-bubble">
-                        <div className="relative bg-cream text-night-900 px-3.5 py-2.5 rounded-2xl text-[11.5px] sm:text-[12.5px] font-extrabold leading-snug shadow-2xl">
-                          {s.bubble.text}
-                          {/* хвостик пузыря, указывающий на макушку */}
-                          <span className="absolute left-1/2 -translate-x-1/2 -bottom-1.5 w-3 h-3 bg-cream rotate-45 rounded-[3px]" />
+
+              {/* питомец */}
+              {pet.transcended ? (
+                <div className="absolute inset-x-0 bottom-[16%] flex flex-col items-center gap-4 z-10 px-6">
+                  <div className="anim-float">
+                    <span className="block w-16 h-16 rounded-full flex items-center justify-center" style={{ background: `${pet.dna.colorPrimary}2e`, boxShadow: `0 0 50px ${pet.dna.colorPrimary}66` }}>
+                      <Icon name="star" className="w-9 h-9 text-butter" />
+                    </span>
+                  </div>
+                  <p className="text-[13px] font-bold text-cream/60 text-center">Здесь живёт память о {pet.name}. Дерево наследия цветёт.</p>
+                  <button className="btn btn-primary" onClick={newGeneration}><Icon name="spark" className="w-5 h-5" />Новое яйцо</button>
+                </div>
+              ) : (
+                <div className="scene-resident absolute inset-x-0 flex justify-center z-10">
+                  <div className="relative">
+                    {s.bubble && (
+                      <div className="scene-message absolute left-1/2 -translate-x-1/2 w-max z-30">
+                        <div key={s.bubble.at} className="anim-bubble">
+                          <div className="scene-speech" role="status">
+                            {s.bubble.text}
+                          </div>
+                          <span className="absolute left-1/2 -translate-x-1/2 -bottom-1 w-2.5 h-2.5 bg-cream rotate-45 rounded-[2px]" />
                         </div>
                       </div>
+                    )}
+                    {pet.sleeping && !s.bubble && (
+                      <div className="scene-message scene-dream absolute left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                        <DreamCloud learning={sleepLearning} />
+                      </div>
+                    )}
+                    <div ref={petMotion} className="scene-pet-motion">
+                      <PetSprite pet={pet} size="var(--scene-pet-size)" onStroke={() => engine.petStroke()} />
                     </div>
-                  )}
-                  {/* Облака сна привязаны к питомцу (центрированы по его обёртке),
-                      а не к сцене — так они всегда ровно над головой.
-                      Скрываются, когда показывается реплика (например, при побудке). */}
-                  {pet.sleeping && !s.bubble && (
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[78%] z-20 pointer-events-none">
-                      <DreamCloud learning={sleepLearning} />
-                    </div>
-                  )}
-                  <div key={squishAt} className={squishAt ? 'anim-squish' : ''}>
-                    <PetSprite pet={pet} size="min(46vw, 232px)" onStroke={() => engine.petStroke()} />
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* одноразовые анимации: сердца, метла, пузыри */}
-            {!pet.transcended && s.fx && <FxLayer fx={s.fx} />}
-
-            {/* быстрые действия под питомцем; во сне доступны только сон и уборка */}
-            {!pet.transcended && (
-              <div className="absolute inset-x-0 bottom-2.5 sm:bottom-3 z-20 flex justify-center gap-0.5 sm:gap-1.5 px-1">
-                <QuickBtn icon="berry" label="Кухня" disabled={pet.sleeping} onClick={() => setTab('care')} />
-                <QuickBtn icon="heart" label="Гладить" disabled={pet.sleeping} onClick={() => engine.petStroke()} />
-                <QuickBtn icon="broom" label="Уборка" onClick={() => { const r = engine.cleanRoom(); if (!r.ok) sfx.sad(); }} />
-                <QuickBtn icon="drop" label="Купать" disabled={pet.sleeping} onClick={() => { const r = engine.bathPet(); if (!r.ok) sfx.sad(); }} />
-                <QuickBtn icon="sleep" label={pet.sleeping ? 'Будить' : 'Спать'} onClick={() => engine.toggleSleep()} />
-                <QuickBtn icon="book" label="Учиться" disabled={pet.sleeping} onClick={() => setShowLearning(true)} />
-                <QuickBtn icon="walk" label="Гулять" disabled={pet.sleeping} onClick={() => setShowWalk(true)} />
-              </div>
-            )}
-          </RoomScene>
-        </div>
+              {/* одноразовые анимации: сердца, метла, пузыри */}
+              {!pet.transcended && s.fx && <FxLayer fx={s.fx} />}
+            </RoomScene>
+          </div>
+          {!pet.transcended && (
+            <div className="room-actions" aria-label="Быстрые действия">
+              <QuickBtn icon="berry" label="Кухня" disabled={pet.sleeping} onClick={() => setTab('care')} />
+              <QuickBtn icon="heart" label="Гладить" disabled={pet.sleeping} onClick={() => engine.petStroke()} />
+              <QuickBtn icon="broom" label="Уборка" onClick={() => { const r = engine.cleanRoom(); if (!r.ok) sfx.sad(); }} />
+              <QuickBtn icon="drop" label="Купать" disabled={pet.sleeping} onClick={() => { const r = engine.bathPet(); if (!r.ok) sfx.sad(); }} />
+              <QuickBtn icon="sleep" label={pet.sleeping ? 'Будить' : 'Спать'} onClick={() => engine.toggleSleep()} />
+              <QuickBtn icon="book" label="Учиться" disabled={pet.sleeping} onClick={() => setShowLearning(true)} />
+              <QuickBtn icon="walk" label="Гулять" disabled={pet.sleeping} onClick={() => setShowWalk(true)} />
+            </div>
+          )}
+        </section>
 
         {/* ================= ПАНЕЛЬ ================= */}
         {/* нижний отступ учитывает системную панель Android («Назад/Домой»)
             и домашний индикатор iPhone — контент никогда не уходит под них */}
-        <div className="lg:h-full lg:overflow-y-auto no-scrollbar lg:pr-1">
-          <div className="p-3.5 sm:p-4 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] lg:pb-6 space-y-3.5 max-w-xl lg:max-w-none mx-auto">
-            <HUD pet={pet} coins={s.coins} weather={weather} soundOn={s.settings.sound}
-              onToggleSound={() => engine.setSound(!s.settings.sound)} onOpenSettings={() => setShowSettings(true)} />
+        <div ref={panel} className="lg:h-full lg:overflow-y-auto no-scrollbar lg:pr-1">
+          <div className="px-3 pt-3 sm:px-4 lg:px-0 lg:pt-0 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] lg:pb-5 space-y-3.5 max-w-xl lg:max-w-none mx-auto">
+            <div className={tab === 'scene' ? undefined : 'hidden lg:block'}>
+              <HUD pet={pet} coins={s.coins} weather={weather} soundOn={s.settings.sound}
+                onToggleSound={() => engine.setSound(!s.settings.sound)} onOpenSettings={() => setShowSettings(true)} />
+            </div>
 
             {tab === 'scene' && (
               <div className="card p-4 text-center anim-fade-up">
                 <p className="text-[13px] font-bold text-cream/65 leading-relaxed">
-                  {pet.name} сейчас в комнате. Погладьте его, выкупайте, уберитесь — или загляните во вкладки: там еда, учёба, прогулки, игры и дневник.
+                  {roomStatus}
                 </p>
                 <div className="flex justify-center gap-2 mt-3 flex-wrap">
                   <button className="btn btn-butter !py-2 !px-3.5 !text-xs" onClick={() => setTab('care')}>Забота</button>
@@ -271,13 +302,15 @@ function Game() {
               </div>
             )}
             {tab === 'care' && <CarePanel state={s} />}
-            {tab === 'games' && <Minigames petName={pet.name} />}
-            {tab === 'chat' && <ChatPanel state={s} />}
-            {tab === 'journal' && <Journal state={s} />}
-            {tab === 'doc' && <DesignDoc />}
+            <Suspense fallback={<PanelLoading />}>
+              {tab === 'games' && <Minigames petName={pet.name} />}
+              {tab === 'chat' && <ChatPanel state={s} />}
+              {tab === 'journal' && <Journal state={s} />}
+              {tab === 'doc' && <DesignDoc />}
+            </Suspense>
           </div>
         </div>
-      </div>
+      </main>
 
     </div>
   );
@@ -285,14 +318,16 @@ function Game() {
 
 function QuickBtn({ icon, label, onClick, disabled }: { icon: string; label: string; onClick: () => void; disabled?: boolean }) {
   return (
-    <button onClick={onClick} disabled={disabled} title={disabled ? 'Питомец спит — сначала разбудите' : undefined}
-      className={`flex flex-col items-center gap-0.5 sm:gap-1 group min-w-0 transition-opacity ${disabled ? 'opacity-30 saturate-50 pointer-events-none' : ''}`}>
-      <span className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center border border-sky/20 text-cream bg-night-900/70 backdrop-blur-sm shadow-lg transition-all group-hover:-translate-y-1 group-hover:border-butter/60 group-hover:text-butter group-active:scale-90">
-        <Icon name={icon} className="w-4.5 h-4.5 sm:w-5.5 sm:h-5.5" />
-      </span>
-      <span className="text-[8px] sm:text-[9.5px] font-black text-cream/80 drop-shadow leading-none whitespace-nowrap">{label}</span>
+    <button type="button" className="room-action" onClick={onClick} disabled={disabled}
+      title={disabled ? 'Питомец спит — сначала разбудите' : undefined}>
+      <Icon name={icon} className="w-5 h-5 sm:w-6 sm:h-6" />
+      <span>{label}</span>
     </button>
   );
+}
+
+function PanelLoading() {
+  return <p role="status" className="card px-5 py-4 text-center text-sm text-cream/70">Открываем раздел…</p>;
 }
 
 /* Целостная «сновидческая» композиция над спящим питомцем:

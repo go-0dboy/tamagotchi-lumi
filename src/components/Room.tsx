@@ -1,10 +1,4 @@
-/* ============================================================
- * Комната питомца: окно с реальной погодой и временем суток,
- * кровать, гирлянда, картина, мебель, амбиентные частицы.
- * Геометрия окна привязана к высоте сцены (clamp) — на любых
- * пропорциях экрана окно остаётся на стене, а не на полу.
- * ============================================================ */
-import { useMemo } from 'react';
+import { memo, type CSSProperties, type ReactNode } from 'react';
 import { ROOM_THEMES } from '../game/content';
 import { mulberry32 } from '../game/dna';
 
@@ -12,98 +6,126 @@ interface Props {
   themeId: string;
   furniture: string[];
   phase: 'morning' | 'day' | 'evening' | 'night';
-  weather: { kind: string; label: string };
+  weatherKind: string;
   sleeping?: boolean;
   cleanliness?: number;
-  children?: React.ReactNode;
+  children?: ReactNode;
 }
 
-const SKY: Record<string, string> = {
-  morning: 'linear-gradient(180deg, #ffd9a8 0%, #ffe9c9 40%, #bfe3f2 100%)',
-  day: 'linear-gradient(180deg, #9fd8f0 0%, #c8ecfa 70%, #eaf7fd 100%)',
-  evening: 'linear-gradient(180deg, #ff9e7d 0%, #e8847f 45%, #6d5a8f 100%)',
-  night: 'linear-gradient(180deg, #0d1530 0%, #1c2a52 60%, #33406b 100%)',
+const SKY = {
+  morning: { sky: 'linear-gradient(#ffbe91, #ffebbe 58%, #c9dacc)', far: '#8baaa6', near: '#477579' },
+  day: { sky: 'linear-gradient(#7fb4df, #c9e9ec 62%, #e9edcc)', far: '#7eacb1', near: '#3d7780' },
+  evening: { sky: 'linear-gradient(#66538c, #e27e86 65%, #ffc094)', far: '#6c638f', near: '#393b67' },
+  night: { sky: 'linear-gradient(#122244, #253762 65%, #4d5a83)', far: '#485579', near: '#202d4e' },
 };
 
-export default function RoomScene({ themeId, furniture, phase, weather, sleeping = false, cleanliness = 100, children }: Props) {
+const random = mulberry32(197);
+const stars = Array.from({ length: 10 }, () => ({ x: 8 + random() * 143, y: 7 + random() * 90, r: 0.8 + random() * 1.1 }));
+const precipitation = Array.from({ length: 12 }, () => ({ x: 4 + random() * 92, delay: random() * 4 }));
+const motes = Array.from({ length: 5 }, () => ({ x: 10 + random() * 80, y: 22 + random() * 58, delay: random() * 6 }));
+const grime = Array.from({ length: 8 }, () => ({ x: 8 + random() * 84, y: 7 + random() * 26, rx: 1 + random() * 2.6, ry: 0.8 + random() }));
+
+export default function RoomScene({ children, cleanliness = 100, ...backdrop }: Props) {
+  const dirt = cleanliness < 32 ? 2 : cleanliness < 55 ? 1 : 0;
+  return (
+    <div className="absolute inset-0 isolate overflow-hidden">
+      <RoomBackdrop {...backdrop} dirt={dirt} />
+      {children}
+    </div>
+  );
+}
+
+const RoomBackdrop = memo(function RoomBackdrop({
+  themeId, furniture, phase, weatherKind, sleeping, dirt,
+}: Omit<Props, 'children' | 'cleanliness'> & { dirt: number }) {
   const theme = ROOM_THEMES.find(t => t.id === themeId) ?? ROOM_THEMES[0];
   const has = (id: string) => furniture.includes(id);
-  const seed = useMemo(() => mulberry32(new Date().getDate() * 97 + new Date().getMonth() * 31), []);
-  const fireflies = useMemo(() => Array.from({ length: 10 }, () => ({ left: seed() * 92 + 4, top: seed() * 70 + 18, delay: seed() * 4, dur: 5 + seed() * 4 })), [seed]);
-  const motes = useMemo(() => Array.from({ length: 8 }, () => ({ left: seed() * 92 + 4, top: seed() * 60 + 10, delay: seed() * 6, dur: 8 + seed() * 6 })), [seed]);
-  const stars = useMemo(() => Array.from({ length: 14 }, () => ({ left: seed() * 88 + 6, top: seed() * 70 + 6, delay: seed() * 3, r: 1 + seed() * 1.6 })), [seed]);
-  const rainDrops = useMemo(() => Array.from({ length: 16 }, () => ({ left: seed() * 96 + 2, delay: seed() * 1.4, dur: 0.8 + seed() * 0.6 })), [seed]);
-  const snow = useMemo(() => Array.from({ length: 18 }, () => ({ left: seed() * 96 + 2, delay: seed() * 4, dur: 2.6 + seed() * 2 })), [seed]);
-  /* пятна грязи на полу — чем ниже чистота, тем заметнее */
-  const grime = useMemo(() => Array.from({ length: 10 }, () => ({ left: seed() * 88 + 6, bottom: seed() * 22 + 4, rx: 10 + seed() * 16, ry: 3.5 + seed() * 4, tilt: seed() * 40 - 20 })), [seed]);
-
-  const nightish = phase === 'night' || phase === 'evening';
-  const dirty = cleanliness < 55;
-  const grimy = cleanliness < 32;
+  const sky = SKY[phase];
+  const night = phase === 'night';
+  const wet = weatherKind === 'rain' || weatherKind === 'snow';
+  const cloudy = wet || weatherKind === 'clouds' || weatherKind === 'wind';
 
   return (
-    <div className="absolute inset-0 overflow-hidden" style={{ background: `linear-gradient(180deg, ${theme.wall} 0%, ${theme.wallDeep} 62%, ${theme.floor} 62%, ${theme.floorDeep} 100%)` }}>
-      {/* обои: мягкий горошек */}
-      <svg className="absolute inset-x-0 top-0 w-full opacity-[0.12] pointer-events-none" height="62%" preserveAspectRatio="none" viewBox="0 0 100 62">
-        {[8, 26, 44, 62, 80].map(x => <circle key={`a${x}`} cx={x} cy={12} r={2.6} fill="#fff3e2" />)}
-        {[17, 35, 53, 71, 89].map(x => <circle key={`b${x}`} cx={x} cy={30} r={2} fill="#fff3e2" />)}
-        {[8, 26, 44, 62, 80].map(x => <circle key={`c${x}`} cx={x} cy={48} r={2.2} fill="#fff3e2" />)}
-      </svg>
-
-      {/* окно: высота ограничена — всегда на стене */}
-      <div className="absolute" style={{ left: '7.5%', top: '7%', height: 'clamp(104px, 34%, 196px)', aspectRatio: '0.8', maxWidth: '32%' }}>
-        <div className="absolute inset-0 rounded-t-[46%] rounded-b-[8px] overflow-hidden border-[6px]" style={{ borderColor: '#3a2f52', background: SKY[phase], boxShadow: nightish ? '0 0 30px rgba(255,217,142,0.12)' : '0 0 40px rgba(255,244,214,0.2)' }}>
-          {phase === 'night' && stars.map((s, i) => (
-            <div key={i} className="absolute rounded-full bg-cream" style={{ left: `${s.left}%`, top: `${s.top}%`, width: s.r, height: s.r, animation: `twinkle ${2 + s.delay}s ease-in-out infinite ${s.delay}s` }} />
-          ))}
-          {phase !== 'night' ? (
-            <div className="absolute rounded-full" style={{ right: '16%', top: '14%', width: '22%', aspectRatio: 1, background: phase === 'evening' ? '#ffd28e' : '#fff4c9', boxShadow: '0 0 26px 8px rgba(255,236,180,0.7)' }} />
-          ) : (
-            <div className="absolute rounded-full overflow-hidden" style={{ right: '16%', top: '12%', width: '20%', aspectRatio: 1, background: '#fdf6d8', boxShadow: '0 0 22px 6px rgba(253,246,216,0.45)' }} />
-          )}
-          {(weather.kind === 'clouds' || weather.kind === 'rain' || weather.kind === 'wind') && (
-            <>
-              <div className="absolute rounded-full bg-white/70" style={{ left: '8%', top: '24%', width: '46%', height: '13%', animation: 'floatSlow 9s ease-in-out infinite' }} />
-              <div className="absolute rounded-full bg-white/50" style={{ left: '40%', top: '42%', width: '52%', height: '12%', animation: 'floatSlow 11s ease-in-out infinite 1.2s' }} />
-            </>
-          )}
-          {weather.kind === 'rain' && rainDrops.map((d, i) => (
-            <div key={i} className="absolute w-[2px] rounded-full bg-sky/70" style={{ left: `${d.left}%`, top: '-12%', height: 12, animation: `rainDrop ${d.dur}s linear infinite ${d.delay}s` }} />
-          ))}
-          {weather.kind === 'snow' && snow.map((s, i) => (
-            <div key={i} className="absolute rounded-full bg-white/85" style={{ left: `${s.left}%`, top: '-8%', width: 4.5, height: 4.5, animation: `snowDrop ${s.dur}s linear infinite ${s.delay}s` }} />
-          ))}
-        </div>
-        <div className="absolute -bottom-2.5 -left-1.5 -right-1.5 h-2.5 rounded-[5px]" style={{ background: '#4a3d66' }} />
-      </div>
-
-      {/* гирлянда под потолком — всегда */}
-      <svg className="absolute inset-x-0 top-0 w-full pointer-events-none" height="46" viewBox="0 0 400 46" preserveAspectRatio="none">
-        <path d="M0 8 Q100 30 200 14 T400 10" stroke="#3a2f52" strokeWidth="2" fill="none" />
-        {[40, 90, 140, 190, 240, 290, 340].map((x, i) => (
-          <circle key={x} cx={x} cy={[18, 24, 20, 16, 20, 24, 18][i]} r="4.5"
-            fill={['#ffd98e', '#ffaec9', '#9fe8c9', '#8ecae6', '#c8b6ff', '#ffb49b', '#ffd98e'][i]}
-            style={{ animation: `twinkle ${2.4 + i * 0.3}s ease-in-out infinite ${i * 0.35}s`, filter: 'drop-shadow(0 0 6px currentColor)' }} />
+    <div className="room-backdrop absolute inset-0 pointer-events-none" data-phase={phase} data-sleeping={sleeping || undefined}
+      aria-hidden="true" style={{ '--wall': theme.wall, '--wall-deep': theme.wallDeep, '--floor': theme.floor, '--floor-deep': theme.floorDeep } as CSSProperties}>
+      <div className="room-wall" />
+      <svg className="room-floor" viewBox="0 0 100 40" preserveAspectRatio="none">
+        <path d="M0 5H100 M0 12H100 M0 23H100 M0 39H100 M15 5L12 12 M38 12L34 23 M67 5L70 12 M82 12L93 23 M19 23L10 39 M56 23L59 39"
+          fill="none" stroke="#0c101b" strokeWidth=".4" opacity=".38" />
+        <path d="M0 5.5H100 M0 12.5H100 M0 23.5H100" fill="none" stroke="#ffdfb9" strokeWidth=".18" opacity=".15" />
+        {dirt > 0 && grime.slice(0, dirt === 2 ? 8 : 4).map(({ x, y, rx, ry }, i) => (
+          <ellipse key={i} cx={x} cy={y} rx={rx} ry={ry} fill="#1d1517" opacity={dirt === 2 ? '.62' : '.37'} />
         ))}
       </svg>
+      <div className="room-window-light" />
 
-      {/* картина на стене — всегда */}
-      <div className="absolute pointer-events-none" style={{ right: '26%', top: '9%', width: '11%', minWidth: 54, maxWidth: 92 }}>
-        <svg viewBox="0 0 90 74" className="w-full drop-shadow-lg">
-          <rect x="2" y="2" width="86" height="70" rx="6" fill="#4a3d66" />
-          <rect x="9" y="9" width="72" height="56" rx="3" fill="#1c2a52" />
-          <circle cx="60" cy="26" r="9" fill="#ffd98e" opacity="0.9" />
-          <path d="M9 55 l20 -18 14 12 12 -9 24 15 z" fill="#2e4a43" />
-          <path d="M9 65 h72 v-6 l-24 -12 -12 8 -14 -10 -22 14 z" fill="#3a5248" opacity="0.85" />
+      <div className="room-window">
+        <div className="room-window-glass" style={{ background: sky.sky }}>
+          <svg className="absolute inset-0 h-full w-full" viewBox="0 0 160 182" preserveAspectRatio="xMidYMax slice">
+            {night && !cloudy && <g fill="#fff1c7" opacity=".75">
+              {stars.map(({ x, y, r }, i) => <circle key={i} cx={x} cy={y} r={r} />)}
+            </g>}
+            {!wet && (night
+              ? <path d="M115 25a14 14 0 1 0 13 19 13 13 0 0 1-13-19Z" fill="#fff4cf" />
+              : <circle cx="114" cy={phase === 'evening' ? 87 : 47} r="16" fill="#fff1c2" opacity={cloudy ? '.38' : '.92'} />)}
+            {cloudy && <g fill={night ? '#9aabcf' : '#fff1e2'} opacity=".5">
+              <path d="M0 61H75q-3-7-15-7-4-11-17-10-10 0-15 8-16-2-28 9Z" />
+              <path d="M83 81h77V70q-10-7-19 0-9-8-18-2-11-4-15 6-14-1-25 7Z" />
+            </g>}
+            <path d="M0 129Q26 107 53 120T97 119Q126 99 160 120V182H0Z" fill={sky.far} />
+            <path d="M0 149Q28 140 54 151T111 145Q132 132 160 139V182H0Z" fill={sky.near} />
+            <g fill={sky.near}>
+              {[[17, 138, 0.72], [31, 137, 1], [133, 133, 0.85], [145, 130, 1.1]].map(([x, y, size]) => (
+                <path key={x} d="M0-28 8-13H5L11 0H-11L-5-13H-8Z" transform={`translate(${x} ${y}) scale(${size})`} />
+              ))}
+            </g>
+            <path d="M13 168Q52 161 79 168T146 162" fill="none" stroke="#ffebc9" strokeWidth="1.4" opacity=".26" />
+          </svg>
+          {wet && precipitation.map(({ x, delay }, i) => (
+            <i key={i} className={`room-precipitation room-${weatherKind}`}
+              style={{ left: `${x}%`, top: `${(i * 29) % 90}%`, animationDelay: `-${delay}s` }} />
+          ))}
+          <span className="room-window-mullion" />
+        </div>
+        <span className="room-window-sill" />
+      </div>
+
+      <div className="room-picture" style={has('furn_bookshelf') ? { right: '32%' } : undefined}>
+        <svg viewBox="0 0 100 83" className="w-full">
+          <path d="M36 22 50 5 64 22" stroke="#b4979b" strokeWidth="1.2" fill="none" />
+          <circle cx="50" cy="5" r="2" fill="#f2c78d" />
+          <rect x="2" y="19" width="96" height="62" rx="6" fill="#382946" stroke="#9a7180" strokeWidth="2" />
+          <rect x="8" y="25" width="84" height="50" rx="3" fill="#e5bc9a" />
+          <rect x="13" y="30" width="74" height="40" rx="1" fill="#514c78" />
+          <circle cx="65" cy="42" r="7" fill="#ffd894" />
+          <path d="M13 66 34 46 48 58 57 53 77 70H13Z" fill="#79829b" />
+          <path d="M13 70 36 60 52 65 71 56 87 63V70Z" fill="#3a4e67" />
         </svg>
       </div>
 
-      {/* коврик-облако */}
+      <div className="room-console">
+        <svg viewBox="0 0 176 93" className="w-full">
+          <ellipse cx="90" cy="85" rx="79" ry="7" fill="#090c18" opacity=".34" />
+          <path d="M22 59h13l-3 26H21zM145 59h13l-1 26h-11z" fill="#3a2b45" />
+          <rect x="19" y="31" width="141" height="42" rx="6" fill="#51405a" />
+          <rect x="13" y="28" width="153" height="10" rx="4" fill="#816176" />
+          <rect x="28" y="43" width="122" height="22" rx="4" fill="#66516b" stroke="#92728a" strokeWidth="1" />
+          <path d="M81 53h16" stroke="#d6ae8b" strokeWidth="3" strokeLinecap="round" />
+          <rect x="34" y="20" width="42" height="8" rx="2" fill="#9b8fb9" />
+          <rect x="40" y="14" width="31" height="6" rx="2" fill="#d7a67f" />
+          <path d="M126 18q2-8 13-12M126 18q-5-9-15-8" stroke="#9fbf9b" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+          <path d="M116 17h21l-4 11h-13z" fill="#d39a83" />
+        </svg>
+      </div>
+
       {has('furn_rug') && (
-        <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none" style={{ bottom: '5.5%', width: '44%', maxWidth: 380 }}>
-          <svg viewBox="0 0 200 60" className="w-full opacity-90">
-            <ellipse cx="100" cy="34" rx="96" ry="24" fill="#fff3e2" opacity="0.14" />
-            <ellipse cx="100" cy="30" rx="76" ry="17" fill="#fff3e2" opacity="0.18" />
+        <div className="room-rug">
+          <svg viewBox="0 0 300 80" className="w-full">
+            <ellipse cx="150" cy="48" rx="143" ry="28" fill="#141124" opacity=".55" />
+            <ellipse cx="150" cy="41" rx="144" ry="29" fill="#5b4869" stroke="#9a7b94" strokeWidth="2" />
+            <ellipse cx="150" cy="41" rx="127" ry="21" fill="#695476" stroke="#bd9aab" strokeWidth="1" strokeDasharray="3 4" opacity=".82" />
+            <path d="M150 28 171 41 150 54 129 41Z M85 37 93 41 85 45 77 41Z M215 37 223 41 215 45 207 41Z"
+              fill="none" stroke="#e7c7b5" strokeWidth="1.3" opacity=".56" />
           </svg>
         </div>
       )}
@@ -181,44 +203,10 @@ export default function RoomScene({ themeId, furniture, phase, weather, sleeping
         </div>
       )}
 
-      {/* пол: доски */}
-      <svg className="absolute inset-x-0 bottom-0 w-full opacity-[0.16] pointer-events-none" style={{ height: '38%' }} preserveAspectRatio="none" viewBox="0 0 100 38">
-        {[6, 13, 20, 27, 34].map(y => <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="#0c1220" strokeWidth="0.5" />)}
-      </svg>
-
-      {/* грязь, если давно не убирали */}
-      {dirty && (
-        <svg className="absolute inset-x-0 bottom-0 w-full pointer-events-none" style={{ height: '34%' }} preserveAspectRatio="none" viewBox="0 0 100 34">
-          {grime.slice(0, grimy ? 10 : 5).map((g, i) => (
-            <ellipse key={i} cx={g.left} cy={34 - g.bottom} rx={g.rx / 4} ry={g.ry / 3}
-              fill="#241a12" opacity={grimy ? 0.5 : 0.3}
-              transform={`rotate(${g.tilt} ${g.left} ${34 - g.bottom})`} />
-          ))}
-          {grimy && [20, 45, 70].map((x, i) => (
-            <path key={`cr${i}`} d={`M${x} ${10 + i * 6} q3 -2 6 0 q2 1.5 5 0`} stroke="#241a12" strokeWidth="1.4" fill="none" strokeLinecap="round" opacity="0.5" />
-          ))}
-        </svg>
-      )}
-
-      {/* амбиент: светлячки ночью, пылинки днём */}
-      {nightish ? fireflies.map((f, i) => (
-        <div key={i} className="absolute rounded-full pointer-events-none" style={{ left: `${f.left}%`, top: `${f.top}%`, width: 5, height: 5, background: '#ffd98e', boxShadow: '0 0 10px 3px rgba(255,217,142,0.5)', animation: `firefly ${f.dur}s ease-in-out infinite ${f.delay}s` }} />
-      )) : motes.map((m, i) => (
-        <div key={i} className="absolute rounded-full bg-cream/40 pointer-events-none" style={{ left: `${m.left}%`, top: `${m.top}%`, width: 3, height: 3, animation: `firefly ${m.dur}s ease-in-out infinite ${m.delay}s` }} />
+      {motes.map(({ x, y, delay }, i) => (
+        <i key={i} className="room-mote" style={{ left: `${x}%`, top: `${y}%`, animationDelay: `-${delay}s` }} />
       ))}
-
-      {/* ночное затемнение + виньетка */}
-      <div className="absolute inset-0 pointer-events-none transition-opacity duration-1000" style={{ background: 'linear-gradient(180deg, rgba(8,12,28,0.42), rgba(8,12,28,0.18) 55%, rgba(8,12,28,0.45))', opacity: phase === 'night' ? 1 : phase === 'evening' ? 0.55 : phase === 'morning' ? 0.25 : 0.1 }} />
-      <div className="absolute inset-0 pointer-events-none room-vignette" />
-
-      {/* сон: приглушённый свет + мягкое свечение у питомца
-          (само облако снов рендерится в App.tsx — привязано к голове питомца) */}
-      <div className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
-        style={{ background: 'radial-gradient(ellipse at 50% 78%, rgba(10,15,34,0.15) 0%, rgba(8,12,28,0.62) 100%)', opacity: sleeping ? 1 : 0 }} />
-      <div className="absolute pointer-events-none transition-opacity duration-1000"
-        style={{ left: '50%', bottom: '6%', width: '52%', maxWidth: 440, aspectRatio: '2.4', transform: 'translateX(-50%)', background: 'radial-gradient(ellipse at center, rgba(255,217,142,0.14) 0%, transparent 70%)', opacity: sleeping ? 1 : 0 }} />
-
-      {children}
+      <div className="room-shade" />
     </div>
   );
-}
+});
